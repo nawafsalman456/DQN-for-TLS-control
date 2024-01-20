@@ -1,5 +1,4 @@
 @echo off
-setlocal enabledelayedexpansion
 
 set "PROJECT_ROOT=%CD%"
 echo Set environment variable: PROJECT_ROOT=!PROJECT_ROOT!
@@ -13,5 +12,3 @@ if defined SUMO_HOME (
 )
 
 echo set_env completed successfully!
-
-endlocal
