@@ -1,4 +1,0 @@
-tls_id = my_traffic_light
-red_waiting_time = 2165
-yellow_waiting_time = 217
-green_waiting_time = 55
