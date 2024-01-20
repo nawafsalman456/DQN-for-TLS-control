@@ -1,0 +1,12 @@
+after cloning the repo:
+    1- open Windows terminal
+    2- go to project root
+    3- run set_env.bat from the terminal
+
+
+to run specific test:
+    python %PROJECT_ROOT%\verif\tests\test.py
+
+
+to run all the tests:
+    python %PROJECT_ROOT%\verif\runner\run_all_tests.py
