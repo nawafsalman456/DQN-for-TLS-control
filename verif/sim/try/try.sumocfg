@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2024-01-20 04:42:08 by Eclipse SUMO sumo Version 1.19.0
+<!-- generated on 2024-01-21 01:04:43 by Eclipse SUMO sumo Version 1.19.0
 -->
 
 <configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
@@ -11,10 +11,10 @@
     </input>
 
     <output>
-        <tripinfo-output value="tripinfo.xml"/>
-        <collision-output value="collision.xml"/>
-        <edgedata-output value="edgedata.xml"/>
-        <statistic-output value="stats.xml"/>
+        <tripinfo-output value=""/>
+        <collision-output value=""/>
+        <edgedata-output value=""/>
+        <statistic-output value=""/>
     </output>
 
     <time>
