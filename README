@@ -1,3 +1,6 @@
+to clone the repo, write in git bash or CMD:
+    git clone https://YOUR_USERNAME@github.com/nawafsalman456/ProjectA.git
+
 after cloning the repo:
     1- open Windows terminal
     2- go to project root
