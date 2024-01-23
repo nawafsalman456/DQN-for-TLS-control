@@ -11,10 +11,9 @@ TESTS_LIST = [
 ]
 
 # TODO:
-# make it in parallel.
+# make it in parallel ? if simple.
 # change to sumo (without gui) here anyway.
 # print results of the best algorithm.
-# suppress stdout ? allow only stderr ?
 for test in TESTS_LIST:
-    subprocess.run(['python', f"{tests_dir}\{test}"])
+    subprocess.run(['python', f"{tests_dir}\{test}"], stdout=subprocess.DEVNULL)
 
