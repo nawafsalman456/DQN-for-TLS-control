@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2024-01-21 01:04:49 by Eclipse SUMO netedit Version 1.19.0
+<!-- generated on 2024-01-23 19:33:47 by Eclipse SUMO netedit Version 1.19.0
 <configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/neteditConfiguration.xsd">
 
     <input>
@@ -1847,7 +1847,7 @@
     </tlLogic>
     <tlLogic id="my_traffic_light" type="static" programID="0" offset="0">
         <phase duration="41" state="OrrOGGgOOrO" next="1"/>
-        <phase duration="4"  state="OyrOGGyOOrO" next="2"/>
+        <phase duration="4"  state="OrrOGGyOOrO" next="2"/>
         <phase duration="41" state="OGGOGGrOOrO" next="3"/>
         <phase duration="4"  state="OyyOyyrOOrO" next="4"/>
         <phase duration="41" state="OrrOrrrOOGO" next="5"/>

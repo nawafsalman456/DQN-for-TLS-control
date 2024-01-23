@@ -19,6 +19,7 @@ Note: here g and h are not defined on the above simple graph, they are defined o
 
 
 PLAN:
-1- write different algorithms and test them, add a testing environment, test all algorithms and verify that we don't have collisions or bad_performance(for now, verify not worse that random algorithm).
-2- build a GIT repo, give access to Nahel and Ayal. add code review ability, and gate keeper (if simple). (repo should include a README on how to set the env)
-3- learn RL, think how to solve the problem using RL. are the above ideas relevant also here ?
+1- write different algorithms and test them, add a testing environment, test all algorithms. for now it is enough to verify that we don't have collisions.
+2- build a GIT repo, give access to Nahel and Ayal.
+3- learn RL, think how to solve the problem using RL. are the above ideas relevant also here ? probably yes. too much simplicity ?
+4- what is the "reward" in this problem ? may consist of alot of variables (waiting time, give more "minus reward" for vehicles waiting for too long, ... )

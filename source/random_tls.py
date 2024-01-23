@@ -16,15 +16,20 @@ class RandomTLS(GenericTLS):
         yellow_waiting_time = 0
         green_waiting_time = 0
 
-        tls_phases = self.get_tls_all_phases()
+        num_tls_phases = len(self.get_tls_all_phases())
+        random_phase_index = 0  # start from phase 0
 
         for step in range(num_steps):
             self.do_one_simulation_step()
 
             # choose random phase every 10 steps. closer to reality. traffic lights phases don't change this fast
+            # if we replace to choose randomly every 1 step, we get much better results.
+            # probabily an issue with the simulation, try more realistic simulation ?
             if (step%10 == 0):
-                # shouldn't allow random to pick any phase ? only pick from 2 phases : current and next ?
-                random_phase_index = random.randint(0, len(tls_phases)-1)
+                # assuming from every state we have 2 possibel actions :
+                # 1- stay in current phase
+                # 2- go to next phase
+                random_phase_index = random.choice([random_phase_index, (random_phase_index+1)%num_tls_phases])
                 self.set_tls_phase(random_phase_index)
 
             for vehicle_id, distance_to_tls, tls_color in self.get_waiting_vehicles_on_tls():
