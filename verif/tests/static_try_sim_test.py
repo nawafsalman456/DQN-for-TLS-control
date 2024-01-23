@@ -1,6 +1,6 @@
 import os
 import sys
-sys.path.append(f"{os.environ.get('PROJECT_ROOT')}\source")
+sys.path.append(f"{os.environ.get('PROJECT_ROOT')}\\source")
 from static_tls import *
 
 if __name__ == "__main__":
