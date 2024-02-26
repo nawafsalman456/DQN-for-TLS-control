@@ -9,3 +9,5 @@ https://pytorch.org/tutorials/intermediate/tensorboard_tutorial.html
 Theory:
 https://towardsdatascience.com/a-gentle-introduction-to-neural-networks-series-part-1-2b90b87795bc
 https://medium.com/mlearning-ai/a-crash-course-in-markov-decision-processes-the-bellman-equation-and-dynamic-programming-e80182207e85
+
+Articles:

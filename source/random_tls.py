@@ -16,6 +16,8 @@ class RandomTLS(GenericTLS):
         yellow_waiting_time = 0
         green_waiting_time = 0
 
+        total_num_vehicles = 0
+
         num_tls_phases = len(self.get_tls_all_phases())
         random_phase_index = 0  # start from phase 0
 
@@ -32,6 +34,8 @@ class RandomTLS(GenericTLS):
                 random_phase_index = random.choice([random_phase_index, (random_phase_index+1)%num_tls_phases])
                 self.set_tls_phase(random_phase_index)
 
+            total_num_vehicles += len(traci.vehicle.getIDList())
+
             for vehicle_id, distance_to_tls, tls_color in self.get_waiting_vehicles_on_tls():
                 red_waiting_time += 1 if tls_color == 'r' else 0
                 yellow_waiting_time += 1 if tls_color == 'y' else 0
@@ -41,6 +45,7 @@ class RandomTLS(GenericTLS):
         out.write(f"red_waiting_time = {red_waiting_time}\n")
         out.write(f"yellow_waiting_time = {yellow_waiting_time}\n")
         out.write(f"green_waiting_time = {green_waiting_time}\n") # should be 0
+        out.write(f"average num alive vehicles = {total_num_vehicles/num_steps}\n")
 
         self.end_simulation()
         out.close()

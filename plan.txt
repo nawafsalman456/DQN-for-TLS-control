@@ -1,0 +1,40 @@
+assume we have 6 traffic light states : [0,5]
+
+assume we need to keep traffic lights order between states (is this right ?):
+0->1->2->3->4->5->0->1->...
+(may be a big limitation, need to try the algorithms without this assumption).
+
+start with a very simple algorithm:
+for every state we can do one of 2 actions:
+1- stay in current state
+2- go to next state
+
+for example, if we use A* with heuristic function h, and distance function g. (f = g + h)
+we have this simple graph : 0->1->2->3->4->5->0
+from state i, choose to go to state with the minimal f value:
+i : if f(i) < f(i+1)
+i+1 : if f(i+1) < f(i)
+Note: here g and h are not defined on the above simple graph, they are defined on infinite graph where every state is a pair of (tl_state, timestamp):
+(0,0)->(1,1)->(1,2)->(1,3)->(2,4)->...
+
+
+Q-Learning simple algorithm:
+NN:
+input: s - vector of (num of waiting vehicles, num of slowing vehicles, num of waiting people, total waiting time, num of buses, and other observations ....)
+2-3 hidden layers, each of size 32x32 or 64x64.
+output: vector of Q, size = 2:
+    Q(s, stay_in_curr_state)
+    Q(s, go_to_next_state)
+Reward of state s: (minus of) the average time people/vehicles exist in the simulation.
+given a state s, pass it through the NN, and pick the action with maximal Q.
+Training: use RL to train and calculate the network's parameters.
+Later: add GAMMA ? handle noise ? handle unexpected behaviour (add transition probability) ? 
+
+
+PLAN:
+1- write different algorithms and test them, add a testing environment, test all algorithms. verify that we don't have collisions.
+2- build a GIT repo, give access to Nahel and Ayal.
+3- learn RL, think how to solve the problem using RL. are the above ideas relevant also here ? probably yes. too much simplicity ?
+4- what is the "reward" in this problem ?
+
+build several random simulations for the training. on more complicated junctions
