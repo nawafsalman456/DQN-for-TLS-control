@@ -74,7 +74,7 @@ class TrafficNetwork:
 
         self.curr_step += 1
         self.state = self.get_curr_state()
-        self.reward = -len(traci.vehicle.getIDList()) #-sum(self.vehicles_alive_time.values())
+        self.reward = -traci.vehicle.getIDCount()
         is_terminated =  (self.curr_step >= SIM_STEPS)
         if is_terminated:
             self.terminate()
