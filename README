@@ -13,3 +13,6 @@ to run specific test:
 
 to run all the tests:
     python %PROJECT_ROOT%\verif\runner\run_all_tests.py
+
+to run the main algorithm (RL):
+    python %PROJECT_ROOT%\source\RL_tls.py

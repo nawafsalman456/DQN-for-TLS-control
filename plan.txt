@@ -30,11 +30,14 @@ given a state s, pass it through the NN, and pick the action with maximal Q.
 Training: use RL to train and calculate the network's parameters.
 Later: add GAMMA ? handle noise ? handle unexpected behaviour (add transition probability) ? 
 
+meeting with Ayal:
+1- VISUALIZATION - tensorboard : draw gradients,loss, and weights for both policy and target networks
+2- Plot total reward For each episode, instead of loss for each step.
+3- More info per lane. replace Phase <==> lane
+4- Constant time per yellow and red phases (2 sec for yellow and 1 sec for red)
 
-PLAN:
-1- write different algorithms and test them, add a testing environment, test all algorithms. verify that we don't have collisions.
-2- build a GIT repo, give access to Nahel and Ayal.
-3- learn RL, think how to solve the problem using RL. are the above ideas relevant also here ? probably yes. too much simplicity ?
-4- what is the "reward" in this problem ?
-
-build several random simulations for the training. on more complicated junctions
+NEXT STEPS for future:
+1- add ability to choose a seed - to compare results when running with different parameters on same seed.
+2- multi-processing : accelerate the optimization + get access to lab GPUs (write this in the report).
+3- save the parameters (or the whole model) with the highest score in another file. so we can have them when program ends. (https://pytorch.org/tutorials/beginner/saving_loading_models.html)
+4- Hyper-parameters tuning : using cross-validation ? Later, not in this stage of the project.

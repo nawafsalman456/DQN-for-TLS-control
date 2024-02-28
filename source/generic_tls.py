@@ -20,6 +20,9 @@ class GenericTLS:
         self.phases_spent_time = [0]*len(self.get_tls_all_phases())
         self.phases_waiting_vehicles = [0]*len(self.get_tls_all_phases())
         self.changed_phase = False
+        self.vehicle_distance_from_tls = []
+        self.vehicle_velocities = []
+        self.simulation_times = []
 
     def end_simulation(self):
         traci.close()
@@ -28,6 +31,7 @@ class GenericTLS:
         traci.simulationStep()
         self.update_curr_phase_spent_time()
         self.update_curr_phase_waiting_vehicles()
+        self.aggregate_data()
 
     # return list of vehicles waiting for this TLS, each entry:
     # (vehicle_id, distance_to_tls, tls_color)
@@ -118,6 +122,19 @@ class GenericTLS:
             total_waiting_vehicles += num_waiting_vehicles
         self.phases_waiting_vehicles[curr_phase_index] = total_waiting_vehicles
 
+    def aggregate_data(self):
+        controlled_lanes = traci.trafficlight.getControlledLanes(self.tls_id)
+        for lane_id in controlled_lanes:
+            vehicles = traci.lane.getLastStepVehicleIDs(lane_id)
+            for vehicle_id in vehicles:
+                velocity = traci.vehicle.getSpeed(vehicle_id)
+                next_tls_tuple = traci.vehicle.getNextTLS(vehicle_id)
+                next_tls_id, tls_index, tls_distance, tls_color = next_tls_tuple[0]
+                assert(self.tls_id == next_tls_id)
+                self.vehicle_distance_from_tls.append(tls_distance)
+                self.vehicle_velocities.append(velocity)
+                self.simulation_times.append(traci.simulation.getTime())
+
 
     def set_tls_phase(self, phase_index):
         prev_phase = self.get_curr_phase()
@@ -125,3 +142,9 @@ class GenericTLS:
         curr_phase = self.get_curr_phase()
         if curr_phase != prev_phase:
             self.changed_phase = True
+
+    def get_aggregated_data(self):
+        return (self.vehicle_distance_from_tls, self.vehicle_velocities, self.simulation_times)
+
+    def get_curr_colors(self):
+        return traci.trafficlight.getRedYellowGreenState(self.tls_id)

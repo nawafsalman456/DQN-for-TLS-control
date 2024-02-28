@@ -1,6 +1,6 @@
 import math
 import random
-import signal
+import argparse
 import matplotlib
 import matplotlib.pyplot as plt
 from collections import namedtuple, deque
@@ -12,6 +12,13 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 import traffic_network
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--gui', action='store_true')
+parser.add_argument('--print_reward', action='store_true')
+parser.add_argument('--plot_loss', action='store_true')
+parser.add_argument('--plot_space_time', action='store_true')
+args = parser.parse_args()
 
 # if GPU is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -39,33 +46,28 @@ class DQN(nn.Module):
 
     def __init__(self, n_observations, n_actions):
         super(DQN, self).__init__()
-        self.layer1 = nn.Linear(n_observations, 64)
-        self.layer2 = nn.Linear(64, 64)
-        self.layer3 = nn.Linear(64, 64)
-        self.layer4 = nn.Linear(64, n_actions)
+        self.layer1 = nn.Linear(n_observations, 32)
+        self.layer2 = nn.Linear(32, 32)
+        self.layer3 = nn.Linear(32, n_actions)
 
     # Called with either one element to determine next action, or a batch
     # during optimization. Returns tensor([[stay0exp,next0exp]...]).
     def forward(self, x):
         x = F.relu(self.layer1(x))
         x = F.relu(self.layer2(x))
-        x = F.relu(self.layer3(x))
-        return self.layer4(x)
+        return self.layer3(x)
 
 # BATCH_SIZE is the number of transitions sampled from the replay buffer
-# GAMMA is the discount factor as mentioned in the previous section
-# EPS_START is the starting value of epsilon
-# EPS_END is the final value of epsilon
-# EPS_DECAY controls the rate of exponential decay of epsilon, higher means a slower decay
+# GAMMA is the discount factor
 # TAU is the update rate of the target network
-# LR is the learning rate of the ``AdamW`` optimizer
+# LR is the learning rate of the ``RMSprop`` optimizer
 BATCH_SIZE = 128
-GAMMA = 1.01
-EPS_START = 0.9
+GAMMA = 0.99
+EPS_START = 1
 EPS_END = 0.05
 EPS_DECAY = 1000
-TAU = 0.0001
-LR = 1e-4
+TAU = 0.001
+LR = 0.01
 
 
 env = traffic_network.TrafficNetwork()
@@ -79,23 +81,19 @@ policy_net = DQN(n_observations, n_actions).to(device)
 target_net = DQN(n_observations, n_actions).to(device)
 target_net.load_state_dict(policy_net.state_dict())
 
-# try RMSprop instead of AdamW
 optimizer = optim.RMSprop(policy_net.parameters(), lr=LR)
 
 memory = ReplayMemory(500000)
 
 
-steps_done = 0
-
+num_steps = 0
 
 def select_action(state):
-    global steps_done
+    global num_steps
+    num_steps += 1
     sample = random.random()
-    # constant eps_threshold - ~0.05-0.1
-    eps_threshold = 0.05
-    # eps_threshold = EPS_END + (EPS_START - EPS_END) * \
-    #     math.exp(-1. * steps_done / EPS_DECAY)
-    steps_done += 1
+    eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * num_steps / EPS_DECAY)
+    eps_threshold = max(eps_threshold, 0.05)
     if sample > eps_threshold:
         with torch.no_grad():
             # t.max(1) will return the largest column value of each row.
@@ -120,8 +118,7 @@ def optimize_model():
     # (a final state would've been the one after which simulation ended)
     non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
                                           batch.next_state)), device=device, dtype=torch.bool)
-    non_final_next_states = torch.cat([s for s in batch.next_state
-                                                if s is not None])
+    non_final_next_states = torch.cat(list(filter(lambda s: s is not None, batch.next_state)))
 
     state_batch = torch.cat(batch.state)
     action_batch = torch.cat(batch.action)
@@ -147,37 +144,62 @@ def optimize_model():
     criterion = nn.SmoothL1Loss()
     loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
 
-    # for i,e in enumerate(state_action_values):
-    #     print(state_action_values[i])
-    #     print(expected_state_action_values[i])
-    #     print("\n\n")
-
     # Optimize the model
     optimizer.zero_grad()
     loss.backward()
     # In-place gradient clipping
-    torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
+    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), 10)
     optimizer.step()
     
     # save it for the plotting
     losses.append(loss.item())
 
+def print_reward(total_reward, max_total_reward, i_episode):
+    print(f"\ntotal_reward = {total_reward}\n")
+    print(f"max_total_reward = {max_total_reward}\n")
+    print(f"i_episode = {i_episode}\n")
+
+def plot_loss(losses, pause_time = 2):
+    assert(False)   # not working. instead plot reward per episode
+    plt.plot(losses)
+    plt.title('Training ...')
+    plt.xlabel('step')
+    plt.ylabel('Loss')
+    plt.pause(pause_time)    # Wait for "pause_time" second before closing the window
+    plt.clf()  # Clear the current figure
+    plt.close() # Close the current figure window
+
+def plot_space_time():
+    # Data collection of the last simulation
+    vehicle_positions, vehicle_velocities, distance_from_tls = env.get_aggregated_data()
+    # Plot space-time diagram
+    plt.figure(figsize=(10, 5))
+    scatter = plt.scatter(distance_from_tls, vehicle_positions, c=vehicle_velocities, cmap='viridis', marker='.')
+    plt.colorbar(scatter, label='Velocity (m/s)')
+    plt.xlabel('Simulation Time (s)')
+    plt.ylabel('Distance From TLS')
+    plt.title('Space-Time Diagram')
+    plt.pause(10)    # Wait for "pause_time" second before closing the window
+    plt.clf()  # Clear the current figure
+    plt.close() # Close the current figure window
 
 if torch.cuda.is_available():
     num_episodes = 600
 else:
-    num_episodes = 500
+    num_episodes = 100
 
 max_total_reward = -float("inf")
 
 #  main training loop
- # TODO - run episodes in parallel 
+ # TODO - run episodes in parallel ?
 for i_episode in range(num_episodes):
     # Initialize the environment and get its state
 
-    is_gui = False
+    # # change this to True if need to open GUI
+    # # TODO - need to control this bit in run time, between 2 consecutive episodes
+    # is_gui = False
 
-    state = env.reset(is_gui=is_gui)
+    state = env.reset(is_gui=args.gui)
     state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
     total_reward = 0
 
@@ -214,17 +236,14 @@ for i_episode in range(num_episodes):
 
         if terminated:
             max_total_reward = max(max_total_reward, total_reward)
-            print(f"\ntotal_reward = {total_reward}\n")
-            print(f"\max_total_reward = {max_total_reward}\n")
-            print(f"\i_episode = {i_episode}\n")
-            plt.plot(losses)
-            plt.title('Training ...')
-            plt.xlabel('step')
-            plt.ylabel('Loss')
-            plt.pause(2)    # Wait for 2 second before closing the window
-            plt.clf()  # Clear the current figure
-            plt.close() # Close the current figure window
+            if args.print_reward:
+                print_reward(total_reward, max_total_reward, i_episode)
+            if args.plot_loss:
+                plot_loss(losses)
+            if args.plot_space_time:
+                plot_space_time()
             break
+           
 
 print('Complete')
 plt.plot(losses)
