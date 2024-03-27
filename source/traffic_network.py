@@ -1,5 +1,7 @@
 import os
 import sys
+import argparse
+import matplotlib.pyplot as plt
 sys.path.append(os.path.join(os.path.dirname(__file__), f"{os.environ.get('SUMO_HOME')}\\tools"))
 
 import traci
@@ -11,13 +13,15 @@ import torch
 
 root = os.environ.get('PROJECT_ROOT')
 
-SIM_STEPS = 3600
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class TrafficNetwork:
 
     def __init__(self):
         # TODO - move TLS names to test file
+        self.SIM_STEPS = 3600
+        self.MIN_TIME_IN_PHASE = 5
+        self.MAX_TIME_IN_PHASE = 30
         self.tls = generic_tls.GenericTLS('my_traffic_light')   # TODO - for now assume 1 tls, later create a list of all TLSs in the network ??
         self.tls_curr_phase = 0  # start from phase 0
 
@@ -29,7 +33,7 @@ class TrafficNetwork:
         self.vehicle_positions = []
         self.vehicle_velocities = []
         self.simulation_times = []
-        self.action_space = [0, 1]  # action space for each TLS : 0 - stay in current state. 1 - move to next state. TODO - when network contains a list of TLSs. action space will be a dict of all permutation of actions of all TLSs in network ?
+        self.action_space = [0, 1]  # action space for each TLS : 0 - stay in current state. 1 - move to next state.
 
     def reset(self, is_gui):
         # TODO - move below 2 to test file
@@ -50,23 +54,29 @@ class TrafficNetwork:
         self.state = self.get_curr_state()
         return self.state
 
-    # TODO - when network contains a list of TLSs. "action" will be dict. in each entry - {"tls_id" : action}
-    def step(self, action):
+    def step(self, action = None):
         current_colors = self.tls.get_curr_colors()
-        MIN = 10 if ("G" in current_colors or "g" in current_colors) else 2     # if current color are only red and yellow. Min = 2
-        MAX = 30
         time_in_curr_phase = self.tls.get_curr_phase_spent_time()
 
-        if time_in_curr_phase > MAX:
+        if ("y" in current_colors): # if yellow phase, stay for 2 seconds
+            MIN = MAX = 2
+        elif ("G" in current_colors or "g" in current_colors):
+            MIN = self.MIN_TIME_IN_PHASE
+            MAX = self.MAX_TIME_IN_PHASE
+        else:
+            MIN = MAX = 1   # if red phase, stay for 1 seconds
+
+        if time_in_curr_phase >= MAX:
             # if stuck in current phase for a long time, move to next phase
             action = 1
-        if time_in_curr_phase < MIN:
+        if time_in_curr_phase <= MIN:
             # stay in current phase for at least MIN seconds. to prevent fast transitions.
             action = 0
 
-        num_tls_phases = len(self.tls.get_tls_all_phases())
-        self.tls_curr_phase = (self.tls_curr_phase + action) % num_tls_phases   # if action=0 - stay in current state. if action=1 - move to next phase
-        self.tls.set_tls_phase(self.tls_curr_phase)
+        if action is not None:
+            num_tls_phases = len(self.tls.get_tls_all_phases())
+            self.tls_curr_phase = (self.tls_curr_phase + action) % num_tls_phases   # if action=0 - stay in current state. if action=1 - move to next phase
+            self.tls.set_tls_phase(self.tls_curr_phase)
 
         # do the action
         self.tls.do_one_simulation_step()
@@ -75,7 +85,7 @@ class TrafficNetwork:
         self.curr_step += 1
         self.state = self.get_curr_state()
         self.reward = -traci.vehicle.getIDCount()
-        is_terminated =  (self.curr_step >= SIM_STEPS)
+        is_terminated =  (self.curr_step >= self.SIM_STEPS)
         if is_terminated:
             self.terminate()
         return  (self.state, self.reward, is_terminated)
@@ -84,20 +94,13 @@ class TrafficNetwork:
         return self.tls.get_aggregated_data()
 
     def get_curr_state(self):
-        state_list = self.get_curr_phase_encoding() + \
+        state_list = self.tls.get_curr_phase_encoding() + \
                      [self.tls.get_curr_phase_spent_time()] + \
-                     self.tls.get_all_phases_waiting_vehicles()# + \
-                    #  [self.curr_step] + \
-                    #  self.tls.get_num_vehicles_on_each_lane() + \
-                    #  self.tls.get_min_vehicle_distance_on_each_lane()
+                     self.tls.get_num_vehicles_on_each_lane() + \
+                     self.tls.get_all_lanes_waiting_vehicles() + \
+                     self.tls.get_min_vehicle_distance_on_each_lane() + \
+                     [self.curr_step] 
         return state_list
-
-    def get_curr_phase_encoding(self):
-        num_phases = len(self.tls.get_tls_all_phases())
-        curr_phase_index = self.tls.get_curr_phase()
-        phases_encoding_list = [0]*num_phases
-        phases_encoding_list[curr_phase_index] = 1
-        return phases_encoding_list
 
     def get_num_actions(self):
         return 2
@@ -108,16 +111,30 @@ class TrafficNetwork:
     def terminate(self):
         self.tls.end_simulation()
 
-    # def update_vehicles_alive_time(self):
-    #     # remove vehicles that exited from simulation
-    #     for arrived_vehicle_id in traci.simulation.getArrivedIDList():
-    #         self.vehicle_enter_time.pop(arrived_vehicle_id)
-    #         self.vehicles_alive_time.pop(arrived_vehicle_id)
+    def parse_args(self):
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--gui', action='store_true')
+        parser.add_argument('--save_model', action='store_true')
+        parser.add_argument('--load_model', action='store_true')
+        parser.add_argument('--print_reward', action='store_true')
+        parser.add_argument('--plot_rewards', action='store_true')
+        parser.add_argument('--plot_space_time', action='store_true')
+        parser.add_argument("--seed", type=int, default=42, help="Seed for random number generation (default: 42)")
+        return parser.parse_args()
 
-    #     for vehicle_id in traci.vehicle.getIDList():
-    #         if not (vehicle_id in self.vehicles_alive_time):
-    #             self.vehicle_enter_time[vehicle_id] = self.curr_step
-    #             self.vehicles_alive_time[vehicle_id] = 1
-    #         self.vehicles_alive_time[vehicle_id] += (self.curr_step - self.vehicle_enter_time[vehicle_id])  # higher punishment to "older" vehicles
-
-
+    def plot_space_time(self, pause_time = 10):
+        # Data collection of the last simulation
+        vehicle_positions, vehicle_velocities, distance_from_tls = self.get_aggregated_data()
+        # Plot space-time diagram
+        plt.figure(figsize=(10, 5))
+        scatter = plt.scatter(distance_from_tls, vehicle_positions, c=vehicle_velocities, cmap='viridis', marker='.')
+        plt.colorbar(scatter, label='Velocity (m/s)')
+        plt.xlabel('Simulation Time (s)')
+        plt.ylabel('Distance From TLS')
+        plt.title('Space-Time Diagram')
+        if pause_time == 0:
+            plt.show()
+        else:
+            plt.pause(pause_time)    # Wait for "pause_time" second before closing the window
+            plt.clf()  # Clear the current figure
+            plt.close() # Close the current figure window

@@ -30,14 +30,11 @@ given a state s, pass it through the NN, and pick the action with maximal Q.
 Training: use RL to train and calculate the network's parameters.
 Later: add GAMMA ? handle noise ? handle unexpected behaviour (add transition probability) ? 
 
-meeting with Ayal:
-1- VISUALIZATION - tensorboard : draw gradients,loss, and weights for both policy and target networks
-2- Plot total reward For each episode, instead of loss for each step.
-3- More info per lane. replace Phase <==> lane
-4- Constant time per yellow and red phases (2 sec for yellow and 1 sec for red)
+NEXT STEPS:
+1- multi-processing : accelerate the optimization + get access to lab GPUs (write this in the report).
+2- Hyper-parameters tuning : using cross-validation ? Later, not in this stage of the project. now tune manually.
 
-NEXT STEPS for future:
-1- add ability to choose a seed - to compare results when running with different parameters on same seed.
-2- multi-processing : accelerate the optimization + get access to lab GPUs (write this in the report).
-3- save the parameters (or the whole model) with the highest score in another file. so we can have them when program ends. (https://pytorch.org/tutorials/beginner/saving_loading_models.html)
-4- Hyper-parameters tuning : using cross-validation ? Later, not in this stage of the project.
+questions to think about for next stages ? :
+1- after training the model, does it work for other junctions ? or do we need to build a different model (different parameters and input vector dimension) for each junction ? and how to train the model in real world for each junction ?
+2- build simulations for people flows instead of car flows ? different types of vehicles ?
+3- for the training - can we build a simulation generator to build several simulations ? can it simulate "good" tls phases and car/people flows ?

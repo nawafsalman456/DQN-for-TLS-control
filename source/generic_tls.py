@@ -10,16 +10,16 @@ class GenericTLS:
     def __init__(self, tls_id):
         self.tls_id = tls_id
         self.phases_spent_time = [] # time spent in each phase. only counts time spent in current phases loop.
-        self.phases_waiting_vehicles = []
         self.changed_phase = False
+        self.next_phase = None
 
     def start_simulation(self, scenario_file, is_gui = False):
         gui = "-gui" if is_gui else ""
         sumo_binary = checkBinary('sumo'+ gui)
         traci.start([sumo_binary, '-c', scenario_file])
         self.phases_spent_time = [0]*len(self.get_tls_all_phases())
-        self.phases_waiting_vehicles = [0]*len(self.get_tls_all_phases())
         self.changed_phase = False
+        self.next_phase = None
         self.vehicle_distance_from_tls = []
         self.vehicle_velocities = []
         self.simulation_times = []
@@ -28,9 +28,19 @@ class GenericTLS:
         traci.close()
 
     def do_one_simulation_step(self):
+        prev_phase = self.get_curr_phase()
+        if self.next_phase is not None:
+            traci.trafficlight.setPhase(self.tls_id, self.next_phase)
+            self.next_phase = None
+        
         traci.simulationStep()
+
+        curr_phase = self.get_curr_phase()
+        if curr_phase != prev_phase:
+            self.changed_phase = True
+
         self.update_curr_phase_spent_time()
-        self.update_curr_phase_waiting_vehicles()
+        # self.update_curr_phase_waiting_vehicles()
         self.aggregate_data()
 
     # return list of vehicles waiting for this TLS, each entry:
@@ -65,7 +75,7 @@ class GenericTLS:
         num_vehicles = []
         controlled_lanes = traci.trafficlight.getControlledLanes(self.tls_id)
         for lane_id in controlled_lanes:
-            num_vehicles_on_lane = len(traci.lane.getLastStepVehicleIDs(lane_id))
+            num_vehicles_on_lane = traci.lane.getLastStepVehicleNumber(lane_id)
             num_vehicles.append(num_vehicles_on_lane)
         return num_vehicles
 
@@ -102,9 +112,13 @@ class GenericTLS:
         curr_phase_index = self.get_curr_phase()
         return self.phases_spent_time[curr_phase_index]
 
-    def get_all_phases_waiting_vehicles(self):
-        return self.phases_waiting_vehicles
-
+    def get_all_lanes_waiting_vehicles(self):
+        lanes_waiting_vehicles = []
+        controlled_lanes = traci.trafficlight.getControlledLanes(self.tls_id)
+        for lane_id in controlled_lanes:
+            num_waiting_vehicles = traci.lane.getLastStepHaltingNumber(lane_id)
+            lanes_waiting_vehicles.append(num_waiting_vehicles)
+        return lanes_waiting_vehicles
 
     def update_curr_phase_spent_time(self):
         curr_phase_index = self.get_curr_phase()
@@ -113,14 +127,6 @@ class GenericTLS:
             self.changed_phase = False
         self.phases_spent_time[curr_phase_index] += 1
 
-    def update_curr_phase_waiting_vehicles(self):
-        curr_phase_index = self.get_curr_phase()
-        controlled_lanes = traci.trafficlight.getControlledLanes(self.tls_id)
-        total_waiting_vehicles = 0
-        for lane_id in controlled_lanes:
-            num_waiting_vehicles = traci.lane.getLastStepHaltingNumber(lane_id)
-            total_waiting_vehicles += num_waiting_vehicles
-        self.phases_waiting_vehicles[curr_phase_index] = total_waiting_vehicles
 
     def aggregate_data(self):
         controlled_lanes = traci.trafficlight.getControlledLanes(self.tls_id)
@@ -137,14 +143,18 @@ class GenericTLS:
 
 
     def set_tls_phase(self, phase_index):
-        prev_phase = self.get_curr_phase()
-        traci.trafficlight.setPhase(self.tls_id, phase_index)
-        curr_phase = self.get_curr_phase()
-        if curr_phase != prev_phase:
-            self.changed_phase = True
+        self.next_phase = phase_index
 
     def get_aggregated_data(self):
         return (self.vehicle_distance_from_tls, self.vehicle_velocities, self.simulation_times)
 
     def get_curr_colors(self):
         return traci.trafficlight.getRedYellowGreenState(self.tls_id)
+
+    def get_curr_phase_encoding(self):
+        num_phases = len(self.get_tls_all_phases())
+        curr_phase_index = self.get_curr_phase()
+        phases_encoding_list = [0]*num_phases
+        phases_encoding_list[curr_phase_index] = 1
+        return phases_encoding_list
+

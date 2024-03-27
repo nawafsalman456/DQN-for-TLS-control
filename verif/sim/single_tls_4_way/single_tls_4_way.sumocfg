@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2024-02-28 18:31:55 by Eclipse SUMO sumo Version 1.19.0
+<!-- generated on 2024-03-26 23:20:34 by Eclipse SUMO sumo Version 1.19.0
 -->
 
 <configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
@@ -8,7 +8,6 @@
     <input>
         <net-file value="single_tls_4_way.net.xml"/>
         <route-files value="single_tls_4_way.rou.xml"/>
-        <additional-files value="single_tls_4_way.add.xml"/>
         <junction-taz value="true"/>
     </input>
 

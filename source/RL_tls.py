@@ -1,3 +1,4 @@
+import os
 import math
 import random
 import argparse
@@ -5,6 +6,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 from collections import namedtuple, deque
 from itertools import count
+import tensorflow as tf
+from datetime import datetime
 
 import torch
 import torch.nn as nn
@@ -12,20 +15,6 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 import traffic_network
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--gui', action='store_true')
-parser.add_argument('--print_reward', action='store_true')
-parser.add_argument('--plot_loss', action='store_true')
-parser.add_argument('--plot_space_time', action='store_true')
-args = parser.parse_args()
-
-# if GPU is to be used
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward'))
-
 
 class ReplayMemory(object):
 
@@ -46,7 +35,7 @@ class DQN(nn.Module):
 
     def __init__(self, n_observations, n_actions):
         super(DQN, self).__init__()
-        self.layer1 = nn.Linear(n_observations, 32)
+        self.layer1 = nn.Linear(n_observations, 32) # TODO: init params
         self.layer2 = nn.Linear(32, 32)
         self.layer3 = nn.Linear(32, n_actions)
 
@@ -56,6 +45,15 @@ class DQN(nn.Module):
         x = F.relu(self.layer1(x))
         x = F.relu(self.layer2(x))
         return self.layer3(x)
+
+
+PROJECT_ROOT = os.environ.get('PROJECT_ROOT')
+
+# if GPU is to be used
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+Transition = namedtuple('Transition',
+                        ('state', 'action', 'next_state', 'reward'))
 
 # BATCH_SIZE is the number of transitions sampled from the replay buffer
 # GAMMA is the discount factor
@@ -67,32 +65,59 @@ EPS_START = 1
 EPS_END = 0.05
 EPS_DECAY = 1000
 TAU = 0.001
-LR = 0.01
+LR = 0.001
 
+SAVED_MODEL_PATH = f"{PROJECT_ROOT}/saved_models/RL_model_{LR}_{TAU}"
 
+# initialize Tensorflow writers
+current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
+train_log_dir = f'{PROJECT_ROOT}/logs/train/' + current_time + f"_LR_{LR}_TAU_{TAU}"
+# test_log_dir = f'{PROJECT_ROOT}/logs/test/' + current_time
+train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+# test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+
+# initialize traffic environment
 env = traffic_network.TrafficNetwork()
+
+# parse arguments
+args = env.parse_args()
+
+# set constant seed
+random.seed(args.seed)
 
 # Get the number of state observations and actions
 state = env.reset(is_gui=False)
 n_observations = len(state)
 n_actions = env.get_num_actions()
 
+# initialize policy and target networks
 policy_net = DQN(n_observations, n_actions).to(device)
 target_net = DQN(n_observations, n_actions).to(device)
 target_net.load_state_dict(policy_net.state_dict())
 
+# initialize RMSprop optimizer
 optimizer = optim.RMSprop(policy_net.parameters(), lr=LR)
 
-memory = ReplayMemory(500000)
+# initialize memory of size 500000000. make sure that it is big enough to save all transitions.
+memory = ReplayMemory(500000000)
 
+if torch.cuda.is_available():
+    num_episodes = 600
+else:
+    num_episodes = 400
 
-num_steps = 0
+max_total_reward = -float("inf")
+
+rewards = []
+
+# num of total steps on all episodes (different from env.curr_step which counts steps in current episode only)
+num_total_steps = 0
 
 def select_action(state):
-    global num_steps
-    num_steps += 1
+    global num_total_steps
+    num_total_steps += 1
     sample = random.random()
-    eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * num_steps / EPS_DECAY)
+    eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * num_total_steps / EPS_DECAY)
     eps_threshold = max(eps_threshold, 0.05)
     if sample > eps_threshold:
         with torch.no_grad():
@@ -103,8 +128,6 @@ def select_action(state):
     else:
         return torch.tensor([env.sample_random_action()], device=device, dtype=torch.long)
 
-
-losses = []
 
 def optimize_model():
     if len(memory) < BATCH_SIZE:
@@ -147,107 +170,138 @@ def optimize_model():
     # Optimize the model
     optimizer.zero_grad()
     loss.backward()
-    # In-place gradient clipping
-    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), 10)
+
+    # with train_summary_writer.as_default():
+    #     with torch.no_grad():
+    #         for name, param in policy_net.named_parameters():
+    #             if param.grad is not None:
+    #                 tf.summary.scalar(f'gradient norm/{name}', param.grad.norm(), num_total_steps)
+
+    # gradients norm clipping
+    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), 100)
+
+    # with train_summary_writer.as_default():
+    #     with torch.no_grad():
+    #         for name, param in policy_net.named_parameters():
+    #             if param.grad is not None:
+    #                 tf.summary.scalar(f'clipped gradient norm/{name}', param.grad.norm(), num_total_steps)
+
+
     optimizer.step()
-    
-    # save it for the plotting
-    losses.append(loss.item())
+
 
 def print_reward(total_reward, max_total_reward, i_episode):
     print(f"\ntotal_reward = {total_reward}\n")
     print(f"max_total_reward = {max_total_reward}\n")
     print(f"i_episode = {i_episode}\n")
 
-def plot_loss(losses, pause_time = 2):
-    assert(False)   # not working. instead plot reward per episode
-    plt.plot(losses)
+def plot_rewards(rewards, pause_time = 5):
+    plt.plot(rewards)
     plt.title('Training ...')
-    plt.xlabel('step')
-    plt.ylabel('Loss')
+    plt.xlabel('episode')
+    plt.ylabel('total reward')
     plt.pause(pause_time)    # Wait for "pause_time" second before closing the window
     plt.clf()  # Clear the current figure
     plt.close() # Close the current figure window
 
-def plot_space_time():
-    # Data collection of the last simulation
-    vehicle_positions, vehicle_velocities, distance_from_tls = env.get_aggregated_data()
-    # Plot space-time diagram
-    plt.figure(figsize=(10, 5))
-    scatter = plt.scatter(distance_from_tls, vehicle_positions, c=vehicle_velocities, cmap='viridis', marker='.')
-    plt.colorbar(scatter, label='Velocity (m/s)')
-    plt.xlabel('Simulation Time (s)')
-    plt.ylabel('Distance From TLS')
-    plt.title('Space-Time Diagram')
-    plt.pause(10)    # Wait for "pause_time" second before closing the window
-    plt.clf()  # Clear the current figure
-    plt.close() # Close the current figure window
+def load_model():
+    if not os.path.exists(SAVED_MODEL_PATH):
+        return
+    checkpoint = torch.load(SAVED_MODEL_PATH)
+    policy_net.load_state_dict(checkpoint['policy_net_state_dict'])
+    target_net.load_state_dict(checkpoint['target_net_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    memory = checkpoint['memory']
+    policy_net.train()   # put models in train mode. can be useful for later separation between Train mode and test mode.TODO: if --test_mode, put it in test mode
+    target_net.train()   # put models in train mode. can be useful for later separation between Train mode and test mode.TODO: if --test_mode, put it in test mode
 
-if torch.cuda.is_available():
-    num_episodes = 600
-else:
-    num_episodes = 100
+def save_model():
+    torch.save({
+                'policy_net_state_dict': policy_net.state_dict(),
+                'target_net_state_dict': target_net.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'memory': memory,
+                }, SAVED_MODEL_PATH)
 
-max_total_reward = -float("inf")
+def finalize_episode(total_reward, i_episode):
+    global max_total_reward
+    rewards.append(total_reward)
+    max_total_reward = max(max_total_reward, total_reward)
+    if args.print_reward:
+        print_reward(total_reward, max_total_reward, i_episode)
+    if args.plot_rewards:
+        plot_rewards(rewards)
+    if args.plot_space_time:
+        env.plot_space_time()
+    with train_summary_writer.as_default():
+        with torch.no_grad():
+            tf.summary.scalar('Total Reward', total_reward, i_episode)
+            for name, param in policy_net.named_parameters():
+                if param.grad is not None:
+                    tf.summary.histogram(name + "/gradient", param.grad.cpu(), i_episode)
+                    tf.summary.histogram(name, param, i_episode)
+            # for name, param in target_net.named_parameters():
+            #     if param.grad is not None:
+            #         tf.summary.histogram(name + "/gradient_target_net", param.grad.cpu(), i_episode)
+            #         tf.summary.histogram(name + "/target_net", param, i_episode)
 
-#  main training loop
- # TODO - run episodes in parallel ?
-for i_episode in range(num_episodes):
-    # Initialize the environment and get its state
+def train(num_episodes):
+    # TODO - run episodes in parallel ?
+    for i_episode in range(num_episodes):
+        # Initialize the environment and get its state
+        state = env.reset(is_gui=args.gui)
+        state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
+        total_reward = 0
 
-    # # change this to True if need to open GUI
-    # # TODO - need to control this bit in run time, between 2 consecutive episodes
-    # is_gui = False
+        while True:
+            action = select_action(state)
+            observation, reward, terminated = env.step(action.item())
+            total_reward += reward
+            reward = torch.tensor([reward], device=device)
 
-    state = env.reset(is_gui=args.gui)
-    state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
-    total_reward = 0
+            if terminated:
+                next_state = None
+            else:
+                next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
 
-    # # clear the losses of previous episode
-    # losses = []
+            # Store the transition in memory
+            memory.push(state, action, next_state, reward)
 
-    for t in count():
-        action = select_action(state)
-        observation, reward, terminated = env.step(action.item())
-        total_reward += reward
-        reward = torch.tensor([reward], device=device)
+            # Move to the next state
+            state = next_state
 
-        if terminated:
-            next_state = None
-        else:
-            next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
+            # Perform one step of the optimization (on the policy network)
+            optimize_model()
 
-        # Store the transition in memory
-        memory.push(state, action, next_state, reward)
+            # Soft update of the target network's weights
+            # θ′ ← τ θ + (1 −τ )θ′
+            target_net_state_dict = target_net.state_dict()
+            policy_net_state_dict = policy_net.state_dict()
+            for key in policy_net_state_dict:
+                target_net_state_dict[key] = policy_net_state_dict[key]*TAU + target_net_state_dict[key]*(1-TAU)
+            target_net.load_state_dict(target_net_state_dict)
 
-        # Move to the next state
-        state = next_state
+            if terminated:
+                finalize_episode(total_reward, i_episode)
+                break
 
-        # Perform one step of the optimization (on the policy network)
-        optimize_model()
+print("Loading the model ...")
+if args.load_model:
+    load_model()
 
-        # Soft update of the target network's weights
-        # θ′ ← τ θ + (1 −τ )θ′
-        target_net_state_dict = target_net.state_dict()
-        policy_net_state_dict = policy_net.state_dict()
-        for key in policy_net_state_dict:
-            target_net_state_dict[key] = policy_net_state_dict[key]*TAU + target_net_state_dict[key]*(1-TAU)
-        target_net.load_state_dict(target_net_state_dict)
+# main training loop
+print("Training ...")
+train(num_episodes)
 
-        if terminated:
-            max_total_reward = max(max_total_reward, total_reward)
-            if args.print_reward:
-                print_reward(total_reward, max_total_reward, i_episode)
-            if args.plot_loss:
-                plot_loss(losses)
-            if args.plot_space_time:
-                plot_space_time()
-            break
-           
+print("Saving the model ...")
+if args.save_model:
+    save_model()
 
 print('Complete')
-plt.plot(losses)
-plt.title('Final Results')
-plt.xlabel('step')
-plt.ylabel('Loss')
+plt.plot(rewards)
+plt.title('Final Rewards')
+plt.xlabel('episode')
+plt.ylabel('Total Reward')
 plt.show()
+
+env.plot_space_time(0)
