@@ -41,7 +41,7 @@ class GenericTLS:
 
         self.update_curr_phase_spent_time()
         # self.update_curr_phase_waiting_vehicles()
-        self.aggregate_data()
+
 
     # return list of vehicles waiting for this TLS, each entry:
     # (vehicle_id, distance_to_tls, tls_color)

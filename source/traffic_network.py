@@ -24,6 +24,7 @@ class TrafficNetwork:
         self.MAX_TIME_IN_PHASE = 30
         self.tls = generic_tls.GenericTLS('my_traffic_light')   # TODO - for now assume 1 tls, later create a list of all TLSs in the network ??
         self.tls_curr_phase = 0  # start from phase 0
+        self.collect_data = False
 
         self.curr_step = 0
         self.reward = 0
@@ -35,7 +36,7 @@ class TrafficNetwork:
         self.simulation_times = []
         self.action_space = [0, 1]  # action space for each TLS : 0 - stay in current state. 1 - move to next state.
 
-    def reset(self, is_gui):
+    def reset(self, is_gui=False, collect_data=False):
         # TODO - move below 2 to test file
         sim_file = f"{root}\\verif\sim\\single_tls_4_way\\single_tls_4_way.sumocfg"
         try:
@@ -52,6 +53,7 @@ class TrafficNetwork:
         self.vehicles_alive_time = {}
         self.vehicle_enter_time = {}
         self.state = self.get_curr_state()
+        self.collect_data = collect_data
         return self.state
 
     def step(self, action = None):
@@ -75,12 +77,16 @@ class TrafficNetwork:
 
         if action is not None:
             num_tls_phases = len(self.tls.get_tls_all_phases())
-            self.tls_curr_phase = (self.tls_curr_phase + action) % num_tls_phases   # if action=0 - stay in current state. if action=1 - move to next phase
-            self.tls.set_tls_phase(self.tls_curr_phase)
+            tls_next_phase = (self.tls_curr_phase + action) % num_tls_phases  # if action=0 - stay in current state. if action=1 - move to next phase
+            self.tls.set_tls_phase(tls_next_phase)
 
         # do the action
         self.tls.do_one_simulation_step()
         # self.update_vehicles_alive_time()
+        self.tls_curr_phase = self.tls.get_curr_phase()
+
+        if self.collect_data:
+            self.tls.aggregate_data()
 
         self.curr_step += 1
         self.state = self.get_curr_state()
@@ -89,9 +95,6 @@ class TrafficNetwork:
         if is_terminated:
             self.terminate()
         return  (self.state, self.reward, is_terminated)
-
-    def get_aggregated_data(self):
-        return self.tls.get_aggregated_data()
 
     def get_curr_state(self):
         state_list = self.tls.get_curr_phase_encoding() + \
@@ -124,7 +127,7 @@ class TrafficNetwork:
 
     def plot_space_time(self, pause_time = 10):
         # Data collection of the last simulation
-        vehicle_positions, vehicle_velocities, distance_from_tls = self.get_aggregated_data()
+        vehicle_positions, vehicle_velocities, distance_from_tls = self.tls.get_aggregated_data()
         # Plot space-time diagram
         plt.figure(figsize=(10, 5))
         scatter = plt.scatter(distance_from_tls, vehicle_positions, c=vehicle_velocities, cmap='viridis', marker='.')

@@ -86,7 +86,7 @@ args = env.parse_args()
 random.seed(args.seed)
 
 # Get the number of state observations and actions
-state = env.reset(is_gui=False)
+state = env.reset()
 n_observations = len(state)
 n_actions = env.get_num_actions()
 
@@ -248,8 +248,12 @@ def finalize_episode(total_reward, i_episode):
 def train(num_episodes):
     # TODO - run episodes in parallel ?
     for i_episode in range(num_episodes):
+
+        # collect per-step data only in last episode.
+        is_last_episode = (i_episode == num_episodes-1)
+
         # Initialize the environment and get its state
-        state = env.reset(is_gui=args.gui)
+        state = env.reset(is_gui=args.gui, collect_data=is_last_episode)
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
         total_reward = 0
 

@@ -27,4 +27,4 @@ while True:
         break
 
 print(f"\ntotal_reward = {total_reward}\n")
-env.plot_space_time(0)
+# env.plot_space_time(0)
