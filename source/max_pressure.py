@@ -22,14 +22,15 @@ state = env.reset(is_gui=args.gui)
 total_reward = 0
 
 env.MIN_TIME_IN_PHASE = 5
-env.MAX_TIME_IN_PHASE = 20
+env.MAX_TIME_IN_PHASE = 30
+MAX_DISTANCE = 100
 
 while True:
 
     max_lane_pressure = -1
     max_pressure_lane = 0
 
-    num_vehicles_on_each_lane = env.tls.get_num_vehicles_on_each_lane()
+    num_vehicles_on_each_lane = env.tls.get_num_vehicles_on_each_lane_with_limited_distance(MAX_DISTANCE)
     for lane_id, num_vehicles in enumerate(num_vehicles_on_each_lane):
         pressure = num_vehicles
         if pressure > max_lane_pressure:
@@ -48,10 +49,10 @@ while True:
             optimal_phase_index = phase_index
             num_green_lanes_in_optimal_phase = len(lanes_with_green_color)
 
-    curr_phase = env.tls.get_curr_phase()
-    action = 1 if optimal_phase_index > curr_phase else 0
-
-    observation, reward, terminated = env.step(action)
+    # curr_phase = env.tls.get_curr_phase()
+    # action = 1 if optimal_phase_index > curr_phase else 0
+    env.tls.set_tls_phase(optimal_phase_index)
+    observation, reward, terminated = env.step()#action)
     total_reward += reward
 
     if terminated:

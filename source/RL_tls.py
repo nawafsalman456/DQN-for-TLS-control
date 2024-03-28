@@ -35,16 +35,18 @@ class DQN(nn.Module):
 
     def __init__(self, n_observations, n_actions):
         super(DQN, self).__init__()
-        self.layer1 = nn.Linear(n_observations, 32) # TODO: init params
-        self.layer2 = nn.Linear(32, 32)
-        self.layer3 = nn.Linear(32, n_actions)
+        self.layer1 = nn.Linear(n_observations, 64) # TODO: init params
+        self.layer2 = nn.Linear(64, 64)
+        self.layer3 = nn.Linear(64, 64)
+        self.layer4 = nn.Linear(64, n_actions)
 
     # Called with either one element to determine next action, or a batch
     # during optimization. Returns tensor([[stay0exp,next0exp]...]).
     def forward(self, x):
         x = F.relu(self.layer1(x))
         x = F.relu(self.layer2(x))
-        return self.layer3(x)
+        x = F.relu(self.layer3(x))
+        return self.layer4(x)
 
 
 PROJECT_ROOT = os.environ.get('PROJECT_ROOT')
@@ -119,7 +121,7 @@ def select_action(state):
     sample = random.random()
     eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * num_total_steps / EPS_DECAY)
     eps_threshold = max(eps_threshold, 0.05)
-    if sample > eps_threshold:
+    if args.test or sample > eps_threshold:
         with torch.no_grad():
             # t.max(1) will return the largest column value of each row.
             # second column on max result is index of where max element was
@@ -212,8 +214,12 @@ def load_model():
     target_net.load_state_dict(checkpoint['target_net_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     memory = checkpoint['memory']
-    policy_net.train()   # put models in train mode. can be useful for later separation between Train mode and test mode.TODO: if --test_mode, put it in test mode
-    target_net.train()   # put models in train mode. can be useful for later separation between Train mode and test mode.TODO: if --test_mode, put it in test mode
+    if args.test:
+        policy_net.eval()
+        target_net.eval()
+    else:
+        policy_net.train()
+        target_net.train()
 
 def save_model():
     torch.save({
@@ -245,7 +251,7 @@ def finalize_episode(total_reward, i_episode):
             #         tf.summary.histogram(name + "/gradient_target_net", param.grad.cpu(), i_episode)
             #         tf.summary.histogram(name + "/target_net", param, i_episode)
 
-def train(num_episodes):
+def train_model(num_episodes):
     # TODO - run episodes in parallel ?
     for i_episode in range(num_episodes):
 
@@ -289,13 +295,47 @@ def train(num_episodes):
                 finalize_episode(total_reward, i_episode)
                 break
 
+def test_model():
+
+    # Initialize the environment and get its state
+    state = env.reset(is_gui=args.gui, collect_data=True)
+    state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
+    total_reward = 0
+
+    while True:
+        action = select_action(state)
+        observation, reward, terminated = env.step(action.item())
+        total_reward += reward
+        reward = torch.tensor([reward], device=device)
+
+        if terminated:
+            next_state = None
+        else:
+            next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
+
+        # Move to the next state
+        state = next_state
+
+        if terminated:
+            finalize_episode(total_reward, 0)
+            break
+
+
+if (args.test) and (not args.load_model):
+    raise Exception("can't test without loading a given model. run script with --test --load_model")
+if (args.test) and (args.save_model):
+    raise Exception("can't save a model in test mode. run without --save_model")
+
 print("Loading the model ...")
 if args.load_model:
     load_model()
 
-# main training loop
-print("Training ...")
-train(num_episodes)
+if not args.test:
+    # main training loop
+    print("Training ...")
+    train_model(num_episodes)
+else:
+    test_model()
 
 print("Saving the model ...")
 if args.save_model:

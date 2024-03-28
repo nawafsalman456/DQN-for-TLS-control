@@ -79,6 +79,20 @@ class GenericTLS:
             num_vehicles.append(num_vehicles_on_lane)
         return num_vehicles
 
+    def get_num_vehicles_on_each_lane_with_limited_distance(self, max_distance):
+        num_vehicles = []
+        controlled_lanes = traci.trafficlight.getControlledLanes(self.tls_id)
+        for lane_id in controlled_lanes:
+            vehicles = traci.lane.getLastStepVehicleIDs(lane_id)
+            num_vehicles_on_lane = 0
+            for vehicle_id in vehicles:
+                next_tls_tuple = traci.vehicle.getNextTLS(vehicle_id)
+                next_tls_id, tls_index, tls_distance, tls_color = next_tls_tuple[0]
+                if tls_distance <= max_distance:
+                    num_vehicles_on_lane += 1
+            num_vehicles.append(num_vehicles_on_lane)
+        return num_vehicles
+
     def get_waiting_time_on_each_lane(self):
         waiting_time = []
         controlled_lanes = traci.trafficlight.getControlledLanes(self.tls_id)

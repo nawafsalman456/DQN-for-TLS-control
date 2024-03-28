@@ -117,6 +117,7 @@ class TrafficNetwork:
     def parse_args(self):
         parser = argparse.ArgumentParser()
         parser.add_argument('--gui', action='store_true')
+        parser.add_argument('--test', action='store_true')
         parser.add_argument('--save_model', action='store_true')
         parser.add_argument('--load_model', action='store_true')
         parser.add_argument('--print_reward', action='store_true')
