@@ -101,8 +101,9 @@ class TrafficNetwork:
                      [self.tls.get_curr_phase_spent_time()] + \
                      self.tls.get_num_vehicles_on_each_lane() + \
                      self.tls.get_all_lanes_waiting_vehicles() + \
-                     self.tls.get_min_vehicle_distance_on_each_lane() + \
                      [self.curr_step] 
+                    #  self.tls.get_min_vehicle_distance_on_each_lane() + \
+
         return state_list
 
     def get_num_actions(self):

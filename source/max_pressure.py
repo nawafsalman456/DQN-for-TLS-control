@@ -31,8 +31,9 @@ while True:
     max_pressure_lane = 0
 
     num_vehicles_on_each_lane = env.tls.get_num_vehicles_on_each_lane_with_limited_distance(MAX_DISTANCE)
+    wait_time_on_each_lane = env.tls.get_waiting_time_on_each_lane()
     for lane_id, num_vehicles in enumerate(num_vehicles_on_each_lane):
-        pressure = num_vehicles
+        pressure = num_vehicles + 0.5 * wait_time_on_each_lane[lane_id]
         if pressure > max_lane_pressure:
             max_lane_pressure = pressure
             max_pressure_lane = lane_id

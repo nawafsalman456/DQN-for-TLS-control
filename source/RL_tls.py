@@ -71,12 +71,6 @@ LR = 0.001
 
 SAVED_MODEL_PATH = f"{PROJECT_ROOT}/saved_models/RL_model_{LR}_{TAU}"
 
-# initialize Tensorflow writers
-current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
-train_log_dir = f'{PROJECT_ROOT}/logs/train/' + current_time + f"_LR_{LR}_TAU_{TAU}"
-# test_log_dir = f'{PROJECT_ROOT}/logs/test/' + current_time
-train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-# test_summary_writer = tf.summary.create_file_writer(test_log_dir)
 
 # initialize traffic environment
 env = traffic_network.TrafficNetwork()
@@ -86,6 +80,15 @@ args = env.parse_args()
 
 # set constant seed
 random.seed(args.seed)
+
+if not args.test:
+    # initialize Tensorflow writers
+    current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
+    train_log_dir = f'{PROJECT_ROOT}/logs/train/' + current_time + f"_LR_{LR}_TAU_{TAU}"
+    # test_log_dir = f'{PROJECT_ROOT}/logs/test/' + current_time
+    train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+    # test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+
 
 # Get the number of state observations and actions
 state = env.reset()
@@ -173,20 +176,20 @@ def optimize_model():
     optimizer.zero_grad()
     loss.backward()
 
-    # with train_summary_writer.as_default():
-    #     with torch.no_grad():
-    #         for name, param in policy_net.named_parameters():
-    #             if param.grad is not None:
-    #                 tf.summary.scalar(f'gradient norm/{name}', param.grad.norm(), num_total_steps)
+    with train_summary_writer.as_default():
+        with torch.no_grad():
+            for name, param in policy_net.named_parameters():
+                if param.grad is not None:
+                    tf.summary.scalar(f'gradient norm/{name}', param.grad.norm(), num_total_steps)
 
     # gradients norm clipping
-    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), 100)
+    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), 100000)
 
-    # with train_summary_writer.as_default():
-    #     with torch.no_grad():
-    #         for name, param in policy_net.named_parameters():
-    #             if param.grad is not None:
-    #                 tf.summary.scalar(f'clipped gradient norm/{name}', param.grad.norm(), num_total_steps)
+    with train_summary_writer.as_default():
+        with torch.no_grad():
+            for name, param in policy_net.named_parameters():
+                if param.grad is not None:
+                    tf.summary.scalar(f'clipped gradient norm/{name}', param.grad.norm(), num_total_steps)
 
 
     optimizer.step()
@@ -239,17 +242,22 @@ def finalize_episode(total_reward, i_episode):
         plot_rewards(rewards)
     if args.plot_space_time:
         env.plot_space_time()
-    with train_summary_writer.as_default():
-        with torch.no_grad():
-            tf.summary.scalar('Total Reward', total_reward, i_episode)
-            for name, param in policy_net.named_parameters():
-                if param.grad is not None:
-                    tf.summary.histogram(name + "/gradient", param.grad.cpu(), i_episode)
-                    tf.summary.histogram(name, param, i_episode)
-            # for name, param in target_net.named_parameters():
-            #     if param.grad is not None:
-            #         tf.summary.histogram(name + "/gradient_target_net", param.grad.cpu(), i_episode)
-            #         tf.summary.histogram(name + "/target_net", param, i_episode)
+    if not args.test:
+        with train_summary_writer.as_default():
+            with torch.no_grad():
+                tf.summary.scalar('Total Reward', total_reward, i_episode)
+                for name, param in policy_net.named_parameters():
+                    if param.grad is not None:
+                        tf.summary.histogram(name + "/gradient", param.grad.cpu(), i_episode)
+                        tf.summary.histogram(name, param, i_episode)
+                # for name, param in target_net.named_parameters():
+                #     if param.grad is not None:
+                #         tf.summary.histogram(name + "/gradient_target_net", param.grad.cpu(), i_episode)
+                #         tf.summary.histogram(name + "/target_net", param, i_episode)
+    if args.save_model:
+        print(f"Saving the model ...")
+        save_model()
+        print(f"*** Saved checkpoint at episode {i_episode+1}")
 
 def train_model(num_episodes):
     # TODO - run episodes in parallel ?
@@ -326,8 +334,8 @@ if (args.test) and (not args.load_model):
 if (args.test) and (args.save_model):
     raise Exception("can't save a model in test mode. run without --save_model")
 
-print("Loading the model ...")
 if args.load_model:
+    print("Loading the model ...")
     load_model()
 
 if not args.test:
@@ -337,8 +345,8 @@ if not args.test:
 else:
     test_model()
 
-print("Saving the model ...")
 if args.save_model:
+    print(f"Saving the Final model ...")
     save_model()
 
 print('Complete')
