@@ -35,10 +35,10 @@ class DQN(nn.Module):
 
     def __init__(self, n_observations, n_actions):
         super(DQN, self).__init__()
-        self.layer1 = nn.Linear(n_observations, 64) # TODO: init params
-        self.layer2 = nn.Linear(64, 64)
-        self.layer3 = nn.Linear(64, 64)
-        self.layer4 = nn.Linear(64, n_actions)
+        self.layer1 = nn.Linear(n_observations, 256) # TODO: init params ?
+        self.layer2 = nn.Linear(256, 256)
+        self.layer3 = nn.Linear(256, 256)
+        self.layer4 = nn.Linear(256, n_actions)
 
     # Called with either one element to determine next action, or a batch
     # during optimization. Returns tensor([[stay0exp,next0exp]...]).
@@ -106,10 +106,7 @@ optimizer = optim.RMSprop(policy_net.parameters(), lr=LR)
 # initialize memory of size 500000000. make sure that it is big enough to save all transitions.
 memory = ReplayMemory(500000000)
 
-if torch.cuda.is_available():
-    num_episodes = 600
-else:
-    num_episodes = 400
+num_episodes = 100
 
 max_total_reward = -float("inf")
 
@@ -176,20 +173,20 @@ def optimize_model():
     optimizer.zero_grad()
     loss.backward()
 
-    with train_summary_writer.as_default():
-        with torch.no_grad():
-            for name, param in policy_net.named_parameters():
-                if param.grad is not None:
-                    tf.summary.scalar(f'gradient norm/{name}', param.grad.norm(), num_total_steps)
+    # with train_summary_writer.as_default():
+    #     with torch.no_grad():
+    #         for name, param in policy_net.named_parameters():
+    #             if param.grad is not None:
+    #                 tf.summary.scalar(f'gradient norm/{name}', param.grad.norm(), num_total_steps)
 
     # gradients norm clipping
-    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), 100000)
+    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), 100)
 
-    with train_summary_writer.as_default():
-        with torch.no_grad():
-            for name, param in policy_net.named_parameters():
-                if param.grad is not None:
-                    tf.summary.scalar(f'clipped gradient norm/{name}', param.grad.norm(), num_total_steps)
+    # with train_summary_writer.as_default():
+    #     with torch.no_grad():
+    #         for name, param in policy_net.named_parameters():
+    #             if param.grad is not None:
+    #                 tf.summary.scalar(f'clipped gradient norm/{name}', param.grad.norm(), num_total_steps)
 
 
     optimizer.step()
@@ -217,6 +214,9 @@ def load_model():
     target_net.load_state_dict(checkpoint['target_net_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     memory = checkpoint['memory']
+    rewards = checkpoint['rewards']
+    # print(rewards)
+    # print(memory)
     if args.test:
         policy_net.eval()
         target_net.eval()
@@ -230,6 +230,7 @@ def save_model():
                 'target_net_state_dict': target_net.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'memory': memory,
+                'rewards' : rewards,
                 }, SAVED_MODEL_PATH)
 
 def finalize_episode(total_reward, i_episode):
@@ -242,18 +243,18 @@ def finalize_episode(total_reward, i_episode):
         plot_rewards(rewards)
     if args.plot_space_time:
         env.plot_space_time()
-    if not args.test:
-        with train_summary_writer.as_default():
-            with torch.no_grad():
-                tf.summary.scalar('Total Reward', total_reward, i_episode)
-                for name, param in policy_net.named_parameters():
-                    if param.grad is not None:
-                        tf.summary.histogram(name + "/gradient", param.grad.cpu(), i_episode)
-                        tf.summary.histogram(name, param, i_episode)
-                # for name, param in target_net.named_parameters():
-                #     if param.grad is not None:
-                #         tf.summary.histogram(name + "/gradient_target_net", param.grad.cpu(), i_episode)
-                #         tf.summary.histogram(name + "/target_net", param, i_episode)
+    # if not args.test:
+    #     with train_summary_writer.as_default():
+    #         with torch.no_grad():
+    #             tf.summary.scalar('Total Reward', total_reward, i_episode)
+    #             for name, param in policy_net.named_parameters():
+    #                 if param.grad is not None:
+    #                     tf.summary.histogram(name + "/gradient", param.grad.cpu(), i_episode)
+    #                     tf.summary.histogram(name, param, i_episode)
+    #             # for name, param in target_net.named_parameters():
+    #             #     if param.grad is not None:
+    #             #         tf.summary.histogram(name + "/gradient_target_net", param.grad.cpu(), i_episode)
+    #             #         tf.summary.histogram(name + "/target_net", param, i_episode)
     if args.save_model:
         print(f"Saving the model ...")
         save_model()
@@ -349,11 +350,13 @@ if args.save_model:
     print(f"Saving the Final model ...")
     save_model()
 
+print(rewards)
 print('Complete')
 plt.plot(rewards)
 plt.title('Final Rewards')
 plt.xlabel('episode')
 plt.ylabel('Total Reward')
-plt.show()
+# plt.show()
+plt.savefig(f'imgs/rewards.png')
 
 env.plot_space_time(0)

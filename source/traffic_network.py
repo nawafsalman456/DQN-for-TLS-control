@@ -14,6 +14,7 @@ import torch
 root = os.environ.get('PROJECT_ROOT')
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("device = ", device)
 
 class TrafficNetwork:
 
@@ -38,7 +39,7 @@ class TrafficNetwork:
 
     def reset(self, is_gui=False, collect_data=False):
         # TODO - move below 2 to test file
-        sim_file = f"{root}\\verif\sim\\single_tls_4_way\\single_tls_4_way.sumocfg"
+        sim_file = f"{root}/verif/sim/single_tls_4_way/single_tls_4_way.sumocfg"
         try:
             self.tls.start_simulation(sim_file, is_gui)
         except traci.exceptions.TraCIException:
@@ -138,7 +139,9 @@ class TrafficNetwork:
         plt.ylabel('Distance From TLS')
         plt.title('Space-Time Diagram')
         if pause_time == 0:
-            plt.show()
+            # plt.show()
+            plt.savefig(f'imgs/space_time.png')
+            
         else:
             plt.pause(pause_time)    # Wait for "pause_time" second before closing the window
             plt.clf()  # Clear the current figure
