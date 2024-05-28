@@ -3,6 +3,7 @@ import math
 import random
 import argparse
 import matplotlib
+import signal
 import matplotlib.pyplot as plt
 from collections import namedtuple, deque
 from itertools import count
@@ -15,6 +16,16 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 import traffic_network
+
+# Define a context manager to temporarily block interrupts
+class BlockInterrupts:
+    def __enter__(self):
+        self.old_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        return self
+
+    def __exit__(self, type, value, traceback):
+        signal.signal(signal.SIGINT, self.old_handler)
+
 
 class ReplayMemory(object):
 
@@ -81,7 +92,7 @@ args = env.parse_args()
 # set constant seed
 random.seed(args.seed)
 
-if not args.test:
+if not args.test or args.debug:
     # initialize Tensorflow writers
     current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
     train_log_dir = f'{PROJECT_ROOT}/logs/train/' + current_time + f"_LR_{LR}_TAU_{TAU}"
@@ -106,7 +117,7 @@ optimizer = optim.RMSprop(policy_net.parameters(), lr=LR)
 # initialize memory of size 500000000. make sure that it is big enough to save all transitions.
 memory = ReplayMemory(500000000)
 
-num_episodes = 100
+num_episodes = 400
 
 max_total_reward = -float("inf")
 
@@ -214,7 +225,7 @@ def load_model():
     target_net.load_state_dict(checkpoint['target_net_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     memory = checkpoint['memory']
-    rewards = checkpoint['rewards']
+    rewards = checkpoint['rewards'].tolist()
     # print(rewards)
     # print(memory)
     if args.test:
@@ -225,13 +236,14 @@ def load_model():
         target_net.train()
 
 def save_model():
-    torch.save({
-                'policy_net_state_dict': policy_net.state_dict(),
-                'target_net_state_dict': target_net.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'memory': memory,
-                'rewards' : rewards,
-                }, SAVED_MODEL_PATH)
+    with BlockInterrupts():
+        torch.save({
+                    'policy_net_state_dict': policy_net.state_dict(),
+                    'target_net_state_dict': target_net.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'memory': memory,
+                    'rewards' : torch.tensor(rewards, dtype=torch.int),
+                    }, SAVED_MODEL_PATH)
 
 def finalize_episode(total_reward, i_episode):
     global max_total_reward
