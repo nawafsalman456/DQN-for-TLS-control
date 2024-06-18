@@ -46,10 +46,10 @@ class DQN(nn.Module):
 
     def __init__(self, n_observations, n_actions):
         super(DQN, self).__init__()
-        self.layer1 = nn.Linear(n_observations, 256) # TODO: init params ?
-        self.layer2 = nn.Linear(256, 256)
-        self.layer3 = nn.Linear(256, 256)
-        self.layer4 = nn.Linear(256, n_actions)
+        self.layer1 = nn.Linear(n_observations, 128) # TODO: init params ?
+        self.layer2 = nn.Linear(128, 128)
+        self.layer3 = nn.Linear(128, 128)
+        self.layer4 = nn.Linear(128, n_actions)
 
     # Called with either one element to determine next action, or a batch
     # during optimization. Returns tensor([[stay0exp,next0exp]...]).
@@ -76,7 +76,7 @@ BATCH_SIZE = 128
 GAMMA = 0.99
 EPS_START = 1
 EPS_END = 0.05
-EPS_DECAY = 1000
+EPS_DECAY = 50
 TAU = 0.001
 LR = 0.001
 
@@ -117,7 +117,7 @@ optimizer = optim.RMSprop(policy_net.parameters(), lr=LR)
 # initialize memory of size 500000000. make sure that it is big enough to save all transitions.
 memory = ReplayMemory(500000000)
 
-num_episodes = 400
+num_episodes = 200
 
 max_total_reward = -float("inf")
 
@@ -208,16 +208,16 @@ def print_reward(total_reward, max_total_reward, i_episode):
     print(f"max_total_reward = {max_total_reward}\n")
     print(f"i_episode = {i_episode}\n")
 
-def plot_rewards(rewards, pause_time = 5):
+def plot_rewards():
     plt.plot(rewards)
-    plt.title('Training ...')
+    plt.title('Rewards')
     plt.xlabel('episode')
-    plt.ylabel('total reward')
-    plt.pause(pause_time)    # Wait for "pause_time" second before closing the window
-    plt.clf()  # Clear the current figure
-    plt.close() # Close the current figure window
+    plt.ylabel('Total Reward')
+    # plt.show()
+    plt.savefig(f'imgs/rewards.png')
 
 def load_model():
+    global rewards, memory
     if not os.path.exists(SAVED_MODEL_PATH):
         return
     checkpoint = torch.load(SAVED_MODEL_PATH)
@@ -226,8 +226,8 @@ def load_model():
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     memory = checkpoint['memory']
     rewards = checkpoint['rewards'].tolist()
-    # print(rewards)
-    # print(memory)
+    # print("rewards = ", rewards)
+    # print("len(memory) = ", len(memory))
     if args.test:
         policy_net.eval()
         target_net.eval()
@@ -247,12 +247,13 @@ def save_model():
 
 def finalize_episode(total_reward, i_episode):
     global max_total_reward
-    rewards.append(total_reward)
-    max_total_reward = max(max_total_reward, total_reward)
+    if not args.test:
+        rewards.append(total_reward)
+        max_total_reward = max(max_total_reward, total_reward)
     if args.print_reward:
         print_reward(total_reward, max_total_reward, i_episode)
     if args.plot_rewards:
-        plot_rewards(rewards)
+        plot_rewards()
     if args.plot_space_time:
         env.plot_space_time()
     # if not args.test:
@@ -273,12 +274,9 @@ def finalize_episode(total_reward, i_episode):
         print(f"*** Saved checkpoint at episode {i_episode+1}")
 
 def train_model(num_episodes):
-    # TODO - run episodes in parallel ?
     for i_episode in range(num_episodes):
-
         # collect per-step data only in last episode.
         is_last_episode = (i_episode == num_episodes-1)
-
         # Initialize the environment and get its state
         state = env.reset(is_gui=args.gui, collect_data=is_last_episode)
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
@@ -350,6 +348,8 @@ if (args.test) and (args.save_model):
 if args.load_model:
     print("Loading the model ...")
     load_model()
+    print("rewards = ", rewards)
+    print("len(memory) = ", len(memory))
 
 if not args.test:
     # main training loop
@@ -362,13 +362,6 @@ if args.save_model:
     print(f"Saving the Final model ...")
     save_model()
 
-print(rewards)
 print('Complete')
-plt.plot(rewards)
-plt.title('Final Rewards')
-plt.xlabel('episode')
-plt.ylabel('Total Reward')
-# plt.show()
-plt.savefig(f'imgs/rewards.png')
-
+plot_rewards()
 env.plot_space_time(0)

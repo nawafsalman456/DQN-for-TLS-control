@@ -23,8 +23,6 @@ total_reward = 0
 
 env.MIN_TIME_IN_PHASE = 1
 env.MAX_TIME_IN_PHASE = 99
-env.TIME_IN_YELLOW = 1
-env.TIME_IN_RED = 1
 
 while True:
     
@@ -34,7 +32,7 @@ while True:
     if env.tls_curr_phase != next_phase:
         action = 1
 
-    observation, reward, terminated = env.step()
+    observation, reward, terminated = env.step(action)
     total_reward += reward
 
     if terminated:

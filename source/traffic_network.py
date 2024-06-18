@@ -105,8 +105,8 @@ class TrafficNetwork:
                      [self.tls.get_curr_phase_spent_time()] + \
                      list(num_in_vehicles.values()) + \
                      list(num_out_vehicles.values()) + \
-                     self.tls.get_all_lanes_waiting_vehicles() + \
-                     [self.curr_step]#  + \
+                     self.tls.get_all_lanes_waiting_vehicles()
+                    #  [self.curr_step]#  + \
                     #  self.tls.get_min_vehicle_distance_on_each_lane()
 
         return state_list
