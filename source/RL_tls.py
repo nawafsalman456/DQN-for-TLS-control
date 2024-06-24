@@ -3,6 +3,7 @@ import math
 import random
 import argparse
 import matplotlib
+import signal
 import matplotlib.pyplot as plt
 from collections import namedtuple, deque
 from itertools import count
@@ -15,6 +16,16 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 import traffic_network
+
+# Define a context manager to temporarily block interrupts
+class BlockInterrupts:
+    def __enter__(self):
+        self.old_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        return self
+
+    def __exit__(self, type, value, traceback):
+        signal.signal(signal.SIGINT, self.old_handler)
+
 
 class ReplayMemory(object):
 
@@ -35,10 +46,10 @@ class DQN(nn.Module):
 
     def __init__(self, n_observations, n_actions):
         super(DQN, self).__init__()
-        self.layer1 = nn.Linear(n_observations, 64) # TODO: init params
-        self.layer2 = nn.Linear(64, 64)
-        self.layer3 = nn.Linear(64, 64)
-        self.layer4 = nn.Linear(64, n_actions)
+        self.layer1 = nn.Linear(n_observations, 128) # TODO: init params ?
+        self.layer2 = nn.Linear(128, 128)
+        self.layer3 = nn.Linear(128, 128)
+        self.layer4 = nn.Linear(128, n_actions)
 
     # Called with either one element to determine next action, or a batch
     # during optimization. Returns tensor([[stay0exp,next0exp]...]).
@@ -65,18 +76,12 @@ BATCH_SIZE = 128
 GAMMA = 0.99
 EPS_START = 1
 EPS_END = 0.05
-EPS_DECAY = 1000
+EPS_DECAY = 50
 TAU = 0.001
 LR = 0.001
 
 SAVED_MODEL_PATH = f"{PROJECT_ROOT}/saved_models/RL_model_{LR}_{TAU}"
 
-# initialize Tensorflow writers
-current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
-train_log_dir = f'{PROJECT_ROOT}/logs/train/' + current_time + f"_LR_{LR}_TAU_{TAU}"
-# test_log_dir = f'{PROJECT_ROOT}/logs/test/' + current_time
-train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-# test_summary_writer = tf.summary.create_file_writer(test_log_dir)
 
 # initialize traffic environment
 env = traffic_network.TrafficNetwork()
@@ -86,6 +91,15 @@ args = env.parse_args()
 
 # set constant seed
 random.seed(args.seed)
+
+if not args.test or args.debug:
+    # initialize Tensorflow writers
+    current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
+    train_log_dir = f'{PROJECT_ROOT}/logs/train/' + current_time + f"_LR_{LR}_TAU_{TAU}"
+    # test_log_dir = f'{PROJECT_ROOT}/logs/test/' + current_time
+    train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+    # test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+
 
 # Get the number of state observations and actions
 state = env.reset()
@@ -103,10 +117,7 @@ optimizer = optim.RMSprop(policy_net.parameters(), lr=LR)
 # initialize memory of size 500000000. make sure that it is big enough to save all transitions.
 memory = ReplayMemory(500000000)
 
-if torch.cuda.is_available():
-    num_episodes = 600
-else:
-    num_episodes = 400
+num_episodes = 200
 
 max_total_reward = -float("inf")
 
@@ -197,16 +208,16 @@ def print_reward(total_reward, max_total_reward, i_episode):
     print(f"max_total_reward = {max_total_reward}\n")
     print(f"i_episode = {i_episode}\n")
 
-def plot_rewards(rewards, pause_time = 5):
+def plot_rewards():
     plt.plot(rewards)
-    plt.title('Training ...')
+    plt.title('Rewards')
     plt.xlabel('episode')
-    plt.ylabel('total reward')
-    plt.pause(pause_time)    # Wait for "pause_time" second before closing the window
-    plt.clf()  # Clear the current figure
-    plt.close() # Close the current figure window
+    plt.ylabel('Total Reward')
+    # plt.show()
+    plt.savefig(f'imgs/rewards.png')
 
 def load_model():
+    global rewards, memory
     if not os.path.exists(SAVED_MODEL_PATH):
         return
     checkpoint = torch.load(SAVED_MODEL_PATH)
@@ -214,6 +225,9 @@ def load_model():
     target_net.load_state_dict(checkpoint['target_net_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     memory = checkpoint['memory']
+    rewards = checkpoint['rewards'].tolist()
+    # print("rewards = ", rewards)
+    # print("len(memory) = ", len(memory))
     if args.test:
         policy_net.eval()
         target_net.eval()
@@ -222,42 +236,47 @@ def load_model():
         target_net.train()
 
 def save_model():
-    torch.save({
-                'policy_net_state_dict': policy_net.state_dict(),
-                'target_net_state_dict': target_net.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'memory': memory,
-                }, SAVED_MODEL_PATH)
+    with BlockInterrupts():
+        torch.save({
+                    'policy_net_state_dict': policy_net.state_dict(),
+                    'target_net_state_dict': target_net.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'memory': memory,
+                    'rewards' : torch.tensor(rewards, dtype=torch.int),
+                    }, SAVED_MODEL_PATH)
 
 def finalize_episode(total_reward, i_episode):
     global max_total_reward
-    rewards.append(total_reward)
-    max_total_reward = max(max_total_reward, total_reward)
+    if not args.test:
+        rewards.append(total_reward)
+        max_total_reward = max(max_total_reward, total_reward)
     if args.print_reward:
         print_reward(total_reward, max_total_reward, i_episode)
     if args.plot_rewards:
-        plot_rewards(rewards)
+        plot_rewards()
     if args.plot_space_time:
         env.plot_space_time()
-    with train_summary_writer.as_default():
-        with torch.no_grad():
-            tf.summary.scalar('Total Reward', total_reward, i_episode)
-            for name, param in policy_net.named_parameters():
-                if param.grad is not None:
-                    tf.summary.histogram(name + "/gradient", param.grad.cpu(), i_episode)
-                    tf.summary.histogram(name, param, i_episode)
-            # for name, param in target_net.named_parameters():
-            #     if param.grad is not None:
-            #         tf.summary.histogram(name + "/gradient_target_net", param.grad.cpu(), i_episode)
-            #         tf.summary.histogram(name + "/target_net", param, i_episode)
+    # if not args.test:
+    #     with train_summary_writer.as_default():
+    #         with torch.no_grad():
+    #             tf.summary.scalar('Total Reward', total_reward, i_episode)
+    #             for name, param in policy_net.named_parameters():
+    #                 if param.grad is not None:
+    #                     tf.summary.histogram(name + "/gradient", param.grad.cpu(), i_episode)
+    #                     tf.summary.histogram(name, param, i_episode)
+    #             # for name, param in target_net.named_parameters():
+    #             #     if param.grad is not None:
+    #             #         tf.summary.histogram(name + "/gradient_target_net", param.grad.cpu(), i_episode)
+    #             #         tf.summary.histogram(name + "/target_net", param, i_episode)
+    if args.save_model:
+        print(f"Saving the model ...")
+        save_model()
+        print(f"*** Saved checkpoint at episode {i_episode+1}")
 
 def train_model(num_episodes):
-    # TODO - run episodes in parallel ?
     for i_episode in range(num_episodes):
-
         # collect per-step data only in last episode.
         is_last_episode = (i_episode == num_episodes-1)
-
         # Initialize the environment and get its state
         state = env.reset(is_gui=args.gui, collect_data=is_last_episode)
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
@@ -326,9 +345,11 @@ if (args.test) and (not args.load_model):
 if (args.test) and (args.save_model):
     raise Exception("can't save a model in test mode. run without --save_model")
 
-print("Loading the model ...")
 if args.load_model:
+    print("Loading the model ...")
     load_model()
+    print("rewards = ", rewards)
+    print("len(memory) = ", len(memory))
 
 if not args.test:
     # main training loop
@@ -337,15 +358,10 @@ if not args.test:
 else:
     test_model()
 
-print("Saving the model ...")
 if args.save_model:
+    print(f"Saving the Final model ...")
     save_model()
 
 print('Complete')
-plt.plot(rewards)
-plt.title('Final Rewards')
-plt.xlabel('episode')
-plt.ylabel('Total Reward')
-plt.show()
-
+plot_rewards()
 env.plot_space_time(0)

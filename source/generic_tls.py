@@ -1,5 +1,6 @@
 import os
 import sys
+import random
 sys.path.append(os.path.join(os.path.dirname(__file__), f"{os.environ.get('SUMO_HOME')}\\tools"))
 
 import traci
@@ -12,6 +13,8 @@ class GenericTLS:
         self.phases_spent_time = [] # time spent in each phase. only counts time spent in current phases loop.
         self.changed_phase = False
         self.next_phase = None
+        # self.green_phases = self.get_tls_green_phases()
+        # self.max_pressure_lanes = self.max_pressure_lanes()
 
     def start_simulation(self, scenario_file, is_gui = False):
         gui = "-gui" if is_gui else ""
@@ -23,6 +26,8 @@ class GenericTLS:
         self.vehicle_distance_from_tls = []
         self.vehicle_velocities = []
         self.simulation_times = []
+        self.green_phases = self.get_tls_green_phases()
+        self.max_pressure_lanes = self.get_max_pressure_lanes()
 
     def end_simulation(self):
         traci.close()
@@ -72,12 +77,21 @@ class GenericTLS:
         return len(traci.trafficlight.getControlledLanes(self.tls_id))
 
     def get_num_vehicles_on_each_lane(self):
-        num_vehicles = []
-        controlled_lanes = traci.trafficlight.getControlledLanes(self.tls_id)
-        for lane_id in controlled_lanes:
-            num_vehicles_on_lane = traci.lane.getLastStepVehicleNumber(lane_id)
-            num_vehicles.append(num_vehicles_on_lane)
-        return num_vehicles
+        in_vehicles = {}
+        out_vehicles = {}
+        lanes = traci.trafficlight.getControlledLinks(self.tls_id)
+        sum_vehicles = 0
+        for lane in lanes:
+            for link in lane:
+                incoming_lane = link[0]
+                outgoing_lane = link[1]
+                in_vehicles[incoming_lane] = traci.lane.getLastStepVehicleNumber(incoming_lane)
+                out_vehicles[outgoing_lane] = traci.lane.getLastStepVehicleNumber(outgoing_lane)
+                sum_vehicles += in_vehicles[incoming_lane]
+                sum_vehicles += out_vehicles[outgoing_lane]
+        # for lane_id in controlled_lanes:
+        #     num_vehicles[lane_id] = traci.lane.getLastStepVehicleNumber(lane_id)
+        return in_vehicles, out_vehicles
 
     def get_num_vehicles_on_each_lane_with_limited_distance(self, max_distance):
         num_vehicles = []
@@ -104,7 +118,7 @@ class GenericTLS:
         min_distances = []
         controlled_lanes = traci.trafficlight.getControlledLanes(self.tls_id)
         for lane_id in controlled_lanes:
-            min_distance_to_tls = 200
+            min_distance_to_tls = float("inf")
             vehicles = traci.lane.getLastStepVehicleIDs(lane_id)
             for vehicle_id in vehicles:
                 next_tls_tuple = traci.vehicle.getNextTLS(vehicle_id)
@@ -118,6 +132,14 @@ class GenericTLS:
         all_program_logics = traci.trafficlight.getAllProgramLogics(self.tls_id)
         assert(all_program_logics != () and all_program_logics != None)
         return all_program_logics[0].getPhases()
+    
+    def get_tls_green_phases(self):
+        green_phases = []
+        for i, p in enumerate(self.get_tls_all_phases()):
+            if ("g" in p.state) or ("G" in p.state):
+                phase = (i, p.state)
+                green_phases.append(phase)
+        return green_phases
 
     def get_curr_phase(self):
         return traci.trafficlight.getPhase(self.tls_id)
@@ -154,7 +176,27 @@ class GenericTLS:
                 self.vehicle_distance_from_tls.append(tls_distance)
                 self.vehicle_velocities.append(velocity)
                 self.simulation_times.append(traci.simulation.getTime())
-
+                
+    def get_num_vehicle_of_each_type(self):
+        vehicle_types_num = {} 
+        # controlled_lanes = traci.trafficlight.getControlledLanes(self.tls_id)
+        # for lane_id in controlled_lanes:
+            # vehicles = traci.lane.getLastStepVehicleIDs(lane_id)
+        vehicles = traci.vehicle.getIDList()
+        for vehicle_id in vehicles:
+            vtype = traci.vehicle.getTypeID(vehicle_id)
+            if not(vtype in vehicle_types_num):
+                vehicle_types_num[vtype] = 0
+            vehicle_types_num[vtype] += 1
+        return vehicle_types_num
+    
+    # return number of vehicles considering their weights. for normal vehicles weight = 1, for higher priority vehicles weight = 2.
+    def get_weighted_num_vehicles(self):
+        vehicle_types_num = self.get_num_vehicle_of_each_type()
+        weighted_num_vehicles = 0
+        weighted_num_vehicles += (vehicle_types_num["DEFAULT_VEHTYPE"] * 1) if "DEFAULT_VEHTYPE" in vehicle_types_num else 0
+        weighted_num_vehicles += (vehicle_types_num["DEFAULT_CONTAINERTYPE"] * 2) if "DEFAULT_CONTAINERTYPE" in vehicle_types_num else 0
+        return weighted_num_vehicles
 
     def set_tls_phase(self, phase_index):
         self.next_phase = phase_index
@@ -164,6 +206,9 @@ class GenericTLS:
 
     def get_curr_colors(self):
         return traci.trafficlight.getRedYellowGreenState(self.tls_id)
+    
+    def get_phase_colors(self, phase_index):
+        return self.get_tls_all_phases()[phase_index].state
 
     def get_curr_phase_encoding(self):
         num_phases = len(self.get_tls_all_phases())
@@ -172,3 +217,59 @@ class GenericTLS:
         phases_encoding_list[curr_phase_index] = 1
         return phases_encoding_list
 
+    def get_max_pressure_lanes(self):
+        """for each green phase, get all incoming
+        and outgoing lanes for that phase, store
+        in dict for max pressure calculation
+        """
+        max_pressure_lanes = {}
+        for green_phase in self.green_phases:
+            phase_index, phase_state = green_phase
+            green_lanes_indexes = [index for index, char in enumerate(phase_state) if char in ['g', 'G']]
+            # Incoming lanes: Lanes where vehicles enter the intersection
+            incoming_lanes = []
+            # Outgoing lanes: Lanes where vehicles exit the intersection
+            outgoing_lanes = []
+            for green_lane_index in green_lanes_indexes:
+                green_lanes = traci.trafficlight.getControlledLinks(self.tls_id)[green_lane_index]
+                for link in green_lanes:
+                    incoming_lane = link[0]
+                    outgoing_lane = link[1]
+
+                    if incoming_lane not in incoming_lanes:
+                        incoming_lanes.append(incoming_lane)
+                    if outgoing_lane not in outgoing_lanes:
+                        outgoing_lanes.append(outgoing_lane)
+            max_pressure_lanes[phase_index] = {'inc':incoming_lanes, 'out':outgoing_lanes}
+        return max_pressure_lanes
+
+    def max_pressure(self):
+        phase_pressure = {}
+        no_vehicle_phases = []
+        #compute pressure for all green movements
+        inc, out = self.get_num_vehicles_on_each_lane()
+        for green_phase in self.green_phases:
+            phase_index, phase_state = green_phase
+            inc_lanes = self.max_pressure_lanes[phase_index]['inc']
+            out_lanes = self.max_pressure_lanes[phase_index]['out']
+            
+
+            #pressure is defined as the number of vehicles in a lane
+            inc_pressure = sum([ inc[l] for l in inc_lanes])
+            out_pressure = sum([ out[l] for l in out_lanes])
+            phase_pressure[phase_index] = inc_pressure - out_pressure
+            if inc_pressure == 0 and out_pressure == 0:
+                no_vehicle_phases.append(phase_index)
+
+        ###if no vehicles randomly select a phase
+        if len(no_vehicle_phases) == len(self.green_phases):
+            return random.choice(self.green_phases)[0]
+        else:
+            #choose phase with max pressure
+            #if two phases have equivalent pressure
+            #select one with more green movements
+            #return max(phase_pressure, key=lambda p:phase_pressure[p])
+            phase_pressure = [ (p, phase_pressure[p]) for p in phase_pressure]
+            phase_pressure = sorted(phase_pressure, key=lambda p:p[1], reverse=True)
+            phase_pressure = [ p for p in phase_pressure if p[1] == phase_pressure[0][1] ]
+            return random.choice(phase_pressure)[0]

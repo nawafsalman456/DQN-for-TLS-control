@@ -15,7 +15,7 @@ args = env.parse_args()
 # set constant seed
 random.seed(args.seed)
 
-state = env.reset(is_gui=args.gui)
+state = env.reset(is_gui=args.gui, collect_data=True)
 
 total_reward = 0
 
@@ -27,4 +27,4 @@ while True:
         break
 
 print(f"\ntotal_reward = {total_reward}\n")
-# env.plot_space_time(0)
+env.plot_space_time(0)

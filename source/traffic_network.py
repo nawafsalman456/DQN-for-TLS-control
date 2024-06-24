@@ -14,6 +14,7 @@ import torch
 root = os.environ.get('PROJECT_ROOT')
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("device = ", device)
 
 class TrafficNetwork:
 
@@ -22,6 +23,8 @@ class TrafficNetwork:
         self.SIM_STEPS = 3600
         self.MIN_TIME_IN_PHASE = 5
         self.MAX_TIME_IN_PHASE = 30
+        self.TIME_IN_YELLOW = 2
+        self.TIME_IN_RED = 1
         self.tls = generic_tls.GenericTLS('my_traffic_light')   # TODO - for now assume 1 tls, later create a list of all TLSs in the network ??
         self.tls_curr_phase = 0  # start from phase 0
         self.collect_data = False
@@ -38,7 +41,7 @@ class TrafficNetwork:
 
     def reset(self, is_gui=False, collect_data=False):
         # TODO - move below 2 to test file
-        sim_file = f"{root}\\verif\sim\\single_tls_4_way\\single_tls_4_way.sumocfg"
+        sim_file = f"{root}/verif/sim/single_tls_4_way/single_tls_4_way.sumocfg"
         try:
             self.tls.start_simulation(sim_file, is_gui)
         except traci.exceptions.TraCIException:
@@ -59,24 +62,24 @@ class TrafficNetwork:
     def step(self, action = None):
         current_colors = self.tls.get_curr_colors()
         time_in_curr_phase = self.tls.get_curr_phase_spent_time()
+        num_tls_phases = len(self.tls.get_tls_all_phases())
 
         if ("y" in current_colors): # if yellow phase, stay for 2 seconds
-            MIN = MAX = 2
+            MIN = MAX = self.TIME_IN_YELLOW
         elif ("G" in current_colors or "g" in current_colors):
             MIN = self.MIN_TIME_IN_PHASE
             MAX = self.MAX_TIME_IN_PHASE
         else:
-            MIN = MAX = 1   # if red phase, stay for 1 seconds
+            MIN = MAX = self.TIME_IN_RED   # if red phase, stay for 1 seconds
 
         if time_in_curr_phase >= MAX:
             # if stuck in current phase for a long time, move to next phase
             action = 1
-        if time_in_curr_phase <= MIN:
+        if time_in_curr_phase < MIN:
             # stay in current phase for at least MIN seconds. to prevent fast transitions.
             action = 0
 
         if action is not None:
-            num_tls_phases = len(self.tls.get_tls_all_phases())
             tls_next_phase = (self.tls_curr_phase + action) % num_tls_phases  # if action=0 - stay in current state. if action=1 - move to next phase
             self.tls.set_tls_phase(tls_next_phase)
 
@@ -90,19 +93,22 @@ class TrafficNetwork:
 
         self.curr_step += 1
         self.state = self.get_curr_state()
-        self.reward = -traci.vehicle.getIDCount()
+        self.reward = -self.tls.get_weighted_num_vehicles() # -traci.vehicle.getIDCount()
         is_terminated =  (self.curr_step >= self.SIM_STEPS)
         if is_terminated:
             self.terminate()
         return  (self.state, self.reward, is_terminated)
 
     def get_curr_state(self):
+        num_in_vehicles, num_out_vehicles = self.tls.get_num_vehicles_on_each_lane()
         state_list = self.tls.get_curr_phase_encoding() + \
                      [self.tls.get_curr_phase_spent_time()] + \
-                     self.tls.get_num_vehicles_on_each_lane() + \
-                     self.tls.get_all_lanes_waiting_vehicles() + \
-                     self.tls.get_min_vehicle_distance_on_each_lane() + \
-                     [self.curr_step] 
+                     list(num_in_vehicles.values()) + \
+                     list(num_out_vehicles.values()) + \
+                     self.tls.get_all_lanes_waiting_vehicles()
+                    #  [self.curr_step]#  + \
+                    #  self.tls.get_min_vehicle_distance_on_each_lane()
+
         return state_list
 
     def get_num_actions(self):
@@ -116,6 +122,7 @@ class TrafficNetwork:
 
     def parse_args(self):
         parser = argparse.ArgumentParser()
+        parser.add_argument('--debug', action='store_true')
         parser.add_argument('--gui', action='store_true')
         parser.add_argument('--test', action='store_true')
         parser.add_argument('--save_model', action='store_true')
@@ -137,7 +144,9 @@ class TrafficNetwork:
         plt.ylabel('Distance From TLS')
         plt.title('Space-Time Diagram')
         if pause_time == 0:
-            plt.show()
+            # plt.show()
+            plt.savefig(f'imgs/space_time.png')
+            
         else:
             plt.pause(pause_time)    # Wait for "pause_time" second before closing the window
             plt.clf()  # Clear the current figure
