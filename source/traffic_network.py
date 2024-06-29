@@ -19,20 +19,18 @@ print("device = ", device)
 class TrafficNetwork:
 
     def __init__(self):
-        # TODO - move TLS names to test file
         self.SIM_STEPS = 3600
         self.MIN_TIME_IN_PHASE = 5
         self.MAX_TIME_IN_PHASE = 30
         self.TIME_IN_YELLOW = 2
         self.TIME_IN_RED = 1
-        self.tls = generic_tls.GenericTLS('my_traffic_light')   # TODO - for now assume 1 tls, later create a list of all TLSs in the network ??
+        self.tls = generic_tls.GenericTLS('my_traffic_light')
         self.tls_curr_phase = 0  # start from phase 0
         self.collect_data = False
 
         self.curr_step = 0
         self.reward = 0
-        self.vehicles_alive_time = {}   # map from vehicle_id to the time it is alive in simulation
-        self.vehicle_enter_time = {}
+        self.weighted_reward = 0
         self.state = []
         self.vehicle_positions = []
         self.vehicle_velocities = []
@@ -40,7 +38,6 @@ class TrafficNetwork:
         self.action_space = [0, 1]  # action space for each TLS : 0 - stay in current state. 1 - move to next state.
 
     def reset(self, is_gui=False, collect_data=False):
-        # TODO - move below 2 to test file
         sim_file = f"{root}/verif/sim/single_tls_4_way/single_tls_4_way.sumocfg"
         try:
             self.tls.start_simulation(sim_file, is_gui)
@@ -53,13 +50,12 @@ class TrafficNetwork:
         self.simulation_times = []
         self.curr_step = 0
         self.reward = 0
-        self.vehicles_alive_time = {}
-        self.vehicle_enter_time = {}
+        self.weighted_reward = 0
         self.state = self.get_curr_state()
         self.collect_data = collect_data
         return self.state
 
-    def step(self, action = None):
+    def step(self, action = None, buses_weighted_reward=None):
         current_colors = self.tls.get_curr_colors()
         time_in_curr_phase = self.tls.get_curr_phase_spent_time()
         num_tls_phases = len(self.tls.get_tls_all_phases())
@@ -85,19 +81,28 @@ class TrafficNetwork:
 
         # do the action
         self.tls.do_one_simulation_step()
-        # self.update_vehicles_alive_time()
         self.tls_curr_phase = self.tls.get_curr_phase()
 
+        # collect_data is false in training, to save latency.
         if self.collect_data:
             self.tls.aggregate_data()
 
         self.curr_step += 1
-        self.state = self.get_curr_state()
-        self.reward = -self.tls.get_weighted_num_vehicles() # -traci.vehicle.getIDCount()
+        self.state = self.get_curr_state()  # build the state. state is the input of DQN
+        self.weighted_reward = -self.tls.get_weighted_num_vehicles()
+        # print("weighted reward = ", self.weighted_reward)
+        # print("non-weighted reward = ", -traci.vehicle.getIDCount())
+        if buses_weighted_reward:
+            self.reward = self.weighted_reward
+        else:
+            self.reward = -traci.vehicle.getIDCount()
         is_terminated =  (self.curr_step >= self.SIM_STEPS)
         if is_terminated:
             self.terminate()
         return  (self.state, self.reward, is_terminated)
+    
+    def get_weighted_reward(self):
+        return self.weighted_reward
 
     def get_curr_state(self):
         num_in_vehicles, num_out_vehicles = self.tls.get_num_vehicles_on_each_lane()
@@ -106,8 +111,6 @@ class TrafficNetwork:
                      list(num_in_vehicles.values()) + \
                      list(num_out_vehicles.values()) + \
                      self.tls.get_all_lanes_waiting_vehicles()
-                    #  [self.curr_step]#  + \
-                    #  self.tls.get_min_vehicle_distance_on_each_lane()
 
         return state_list
 
@@ -130,6 +133,8 @@ class TrafficNetwork:
         parser.add_argument('--print_reward', action='store_true')
         parser.add_argument('--plot_rewards', action='store_true')
         parser.add_argument('--plot_space_time', action='store_true')
+        parser.add_argument('--buses_weighted_reward', action='store_true')
+        parser.add_argument('--plot_mean_and_std', action='store_true')
         parser.add_argument("--seed", type=int, default=42, help="Seed for random number generation (default: 42)")
         return parser.parse_args()
 

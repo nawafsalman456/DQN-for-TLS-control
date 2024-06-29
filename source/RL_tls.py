@@ -11,6 +11,7 @@ import tensorflow as tf
 from datetime import datetime
 
 import torch
+import numpy as np
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
@@ -72,15 +73,15 @@ Transition = namedtuple('Transition',
 # GAMMA is the discount factor
 # TAU is the update rate of the target network
 # LR is the learning rate of the ``RMSprop`` optimizer
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 GAMMA = 0.99
 EPS_START = 1
 EPS_END = 0.05
-EPS_DECAY = 50
+EPS_DECAY = 100
 TAU = 0.001
 LR = 0.001
 
-SAVED_MODEL_PATH = f"{PROJECT_ROOT}/saved_models/RL_model_{LR}_{TAU}"
+
 
 
 # initialize traffic environment
@@ -92,7 +93,96 @@ args = env.parse_args()
 # set constant seed
 random.seed(args.seed)
 
-if not args.test or args.debug:
+if args.plot_mean_and_std:
+    SAVED_MODELS_PATH = f"{PROJECT_ROOT}/saved_models/"
+    non_weighted_reward_SAVED_MODELS_PATH = f"{PROJECT_ROOT}/saved_models_non_weighted_reward/"
+
+    all_rewards = []
+    for model_name in os.listdir(SAVED_MODELS_PATH):
+        print("loading model...")
+        model_path = os.path.join(SAVED_MODELS_PATH, model_name)
+        checkpoint = torch.load(model_path, map_location='cpu')
+        rewards = checkpoint['rewards'].tolist()
+        all_rewards.append(rewards)
+        
+    all_rewards_non_weighted = []
+    for model_name in os.listdir(non_weighted_reward_SAVED_MODELS_PATH):
+        print("loading model 2 ...")
+        model_path = os.path.join(non_weighted_reward_SAVED_MODELS_PATH, model_name)
+        checkpoint = torch.load(model_path, map_location='cpu')
+        rewards = checkpoint['rewards'].tolist()
+        all_rewards_non_weighted.append(rewards)
+        
+#     all_rewards = [
+#     [1, 2, 3, 4, 5, 1, 1, 1],
+#     [2, 3, 4, 5, 6],
+#     [3, 4, 5, 6, 7],
+#     [4, 5, 6, 7, 8],
+#     [5, 6, 7, 8, 9],
+#     [6, 7, 8, 9, 10],
+#     [7, 8, 9, 10, 11],
+#     [8, 9, 10, 11, 12],
+#     [9, 10, 11, 12, 13],
+#     [10, 11, 12, 13, 14]
+# ]
+ 
+#     all_rewards_non_weighted = [
+#     [1, 2, 3, 4, 5, 1, 1, 1],
+#     [2, 3, 4, 5, 6],
+#     [3, 4, 5, 6, 7],
+#     [4, 5, 6, 7, 8],
+#     [5, 8, 9, 8, 9],
+#     [6, 7, 8, 9, 10],
+#     [7, 8, 9, 10, 11],
+#     [8, 9, 10, 11, 12],
+#     [9, 10, 11, 12, 13],
+#     [10, 11, 12, 13, 14]
+# ]
+        
+    # Find the minimum length of all lists
+    min_length = min(len(lst) for lst in all_rewards)
+    min_length = min(min_length, min(len(lst) for lst in all_rewards_non_weighted))
+
+    # Truncate each list to the minimum length
+    all_rewards = [lst[:min_length] for lst in all_rewards]
+    all_rewards_non_weighted = [lst[:min_length] for lst in all_rewards_non_weighted]
+        
+    # Convert the list of lists into a NumPy array for easier manipulation
+    all_rewards_np = np.array(all_rewards)
+    all_rewards_non_weighted_np = np.array(all_rewards_non_weighted)
+
+    # Calculate the mean and standard deviation along the axis 0 (column-wise)
+    means = np.mean(all_rewards_np, axis=0)
+    stds = np.std(all_rewards_np, axis=0)
+
+    # Create a plot
+    plt.figure(figsize=(10, 5))
+    x = range(len(means))
+    plt.plot(x, means, label='train with weighted reward')
+    plt.fill_between(x, means - stds, means + stds, color='blue', alpha=0.2)
+    
+    means = np.mean(all_rewards_non_weighted_np, axis=0)
+    stds = np.std(all_rewards_non_weighted_np, axis=0)
+    
+    x = range(len(means))
+    plt.plot(x, means, label='train with non-weighted reward')
+    plt.fill_between(x, means - stds, means + stds, color='red', alpha=0.2)
+    plt.legend()
+
+    plt.title('Reward Mean and STD')
+    plt.xlabel('episode')
+    plt.ylabel('Reward')
+    plt.grid(True)
+    plt.savefig(f'imgs/rewards_mean_and_std.png')
+    exit(0)
+
+
+if args.buses_weighted_reward:
+    SAVED_MODEL_PATH = f"{PROJECT_ROOT}/saved_models/RL_model_{LR}_{TAU}_{args.seed}"
+else:
+    SAVED_MODEL_PATH = f"{PROJECT_ROOT}/saved_models_non_weighted_reward/RL_model_{LR}_{TAU}_{args.seed}"
+
+if not args.test and args.debug:
     # initialize Tensorflow writers
     current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
     train_log_dir = f'{PROJECT_ROOT}/logs/train/' + current_time + f"_LR_{LR}_TAU_{TAU}"
@@ -114,10 +204,10 @@ target_net.load_state_dict(policy_net.state_dict())
 # initialize RMSprop optimizer
 optimizer = optim.RMSprop(policy_net.parameters(), lr=LR)
 
-# initialize memory of size 500000000. make sure that it is big enough to save all transitions.
-memory = ReplayMemory(500000000)
+# initialize memory of size 50000000. make sure that it is big enough to save all transitions.
+memory = ReplayMemory(50000000)
 
-num_episodes = 200
+num_episodes = 300
 
 max_total_reward = -float("inf")
 
@@ -214,7 +304,7 @@ def plot_rewards():
     plt.xlabel('episode')
     plt.ylabel('Total Reward')
     # plt.show()
-    plt.savefig(f'imgs/rewards.png')
+    plt.savefig(f'imgs/rewards_{args.seed}_{args.buses_weighted_reward}.png')
 
 def load_model():
     global rewards, memory
@@ -268,7 +358,7 @@ def finalize_episode(total_reward, i_episode):
     #             #     if param.grad is not None:
     #             #         tf.summary.histogram(name + "/gradient_target_net", param.grad.cpu(), i_episode)
     #             #         tf.summary.histogram(name + "/target_net", param, i_episode)
-    if args.save_model:
+    if args.save_model and (i_episode % 40 == 0):   # save every 40 episodes
         print(f"Saving the model ...")
         save_model()
         print(f"*** Saved checkpoint at episode {i_episode+1}")
@@ -284,8 +374,8 @@ def train_model(num_episodes):
 
         while True:
             action = select_action(state)
-            observation, reward, terminated = env.step(action.item())
-            total_reward += reward
+            observation, reward, terminated = env.step(action.item(), args.buses_weighted_reward)   # weighted reward affects the actions only when training with --buses_weighted_reward
+            total_reward += env.get_weighted_reward()   # in the plot, always take the weighted reward
             reward = torch.tensor([reward], device=device)
 
             if terminated:
@@ -312,6 +402,8 @@ def train_model(num_episodes):
 
             if terminated:
                 finalize_episode(total_reward, i_episode)
+                if len(rewards) >= num_episodes:
+                    return
                 break
 
 def test_model():
@@ -323,8 +415,8 @@ def test_model():
 
     while True:
         action = select_action(state)
-        observation, reward, terminated = env.step(action.item())
-        total_reward += reward
+        observation, reward, terminated = env.step(action.item(), args.buses_weighted_reward)
+        total_reward += env.get_weighted_reward()   # in the plot, always take the weighted reward
         reward = torch.tensor([reward], device=device)
 
         if terminated:
@@ -348,8 +440,8 @@ if (args.test) and (args.save_model):
 if args.load_model:
     print("Loading the model ...")
     load_model()
-    print("rewards = ", rewards)
-    print("len(memory) = ", len(memory))
+    # print("rewards = ", rewards)
+    # print("len(memory) = ", len(memory))
 
 if not args.test:
     # main training loop
