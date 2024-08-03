@@ -37,8 +37,8 @@ class TrafficNetwork:
         self.simulation_times = []
         self.action_space = [0, 1]  # action space for each TLS : 0 - stay in current state. 1 - move to next state.
 
-    def reset(self, is_gui=False, collect_data=False):
-        sim_file = f"{root}/verif/sim/single_tls_4_way/single_tls_4_way.sumocfg"
+    def reset(self, is_gui=False, collect_data=False, sim_file = f"{root}/verif/sim/single_tls_4_way/single_tls_4_way.sumocfg"):
+        # sim_file = f"{root}/verif/sim/single_tls_4_way/single_tls_4_way.sumocfg"
         try:
             self.tls.start_simulation(sim_file, is_gui)
         except traci.exceptions.TraCIException:
@@ -105,12 +105,13 @@ class TrafficNetwork:
         return self.weighted_reward
 
     def get_curr_state(self):
-        num_in_vehicles, num_out_vehicles = self.tls.get_num_vehicles_on_each_lane()
+        # num_in_vehicles, num_out_vehicles = self.tls.get_num_vehicles_on_each_lane()
         state_list = self.tls.get_curr_phase_encoding() + \
                      [self.tls.get_curr_phase_spent_time()] + \
-                     list(num_in_vehicles.values()) + \
-                     list(num_out_vehicles.values()) + \
+                     self.tls.get_num_vehicles_on_each_lane() + \
                      self.tls.get_all_lanes_waiting_vehicles()
+                    #  list(num_in_vehicles.values()) + \
+                    #  list(num_out_vehicles.values()) + \
 
         return state_list
 

@@ -16,3 +16,12 @@ to run all the tests:
 
 to run the main algorithm (RL):
     python %PROJECT_ROOT%\source\RL_tls.py
+
+
+nohup ./run.sh &
+
+nvidia-smi
+
+fuser -v /dev/nvidia0 -k
+
+ps -ef | grep run.sh

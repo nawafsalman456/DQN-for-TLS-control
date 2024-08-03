@@ -18,51 +18,52 @@ args = env.parse_args()
 # set constant seed
 random.seed(args.seed)
 
-state = env.reset(is_gui=args.gui, collect_data=False)
+sim_file = f"{root}/verif/sim/try/try.sumocfg"
+state = env.reset(is_gui=args.gui, collect_data=False, sim_file=sim_file)
 
 
-env.MIN_TIME_IN_PHASE = 5
-env.MAX_TIME_IN_PHASE = 35
+env.MIN_TIME_IN_PHASE = 10
+env.MAX_TIME_IN_PHASE = 50
 
 green_phases = env.tls.get_tls_green_phases()
 
 rewards = []
 
-num_episodes = 300
+num_episodes = 1
 for t in range(num_episodes):
     total_reward = 0
     curr_phase = 0
     time_in_yellow = 0
     time_in_red = 0
-    env.reset()
+    env.reset(sim_file=sim_file)
     while True:
         
-        next_phase = env.tls.max_pressure(curr_phase)
+        next_phase = env.tls.max_pressure()
         
-        if next_phase != curr_phase and env.tls.get_curr_phase_spent_time() < env.MIN_TIME_IN_PHASE:
+        if next_phase != curr_phase and env.tls.get_curr_phase_spent_time() < env.MIN_TIME_IN_PHASE and curr_phase != 4 and curr_phase != 5:
             next_phase = curr_phase
             
         # Force change phase if max time in the current phase is exceeded
         if next_phase == curr_phase and env.tls.get_curr_phase_spent_time() > env.MAX_TIME_IN_PHASE:
-            next_phase = env.tls.max_pressure(curr_phase)
+            next_phase = env.tls.max_pressure()
 
         # Implement yellow phase logic
-        if next_phase != curr_phase and time_in_yellow < 2:
+        if curr_phase != 5 and ((next_phase != curr_phase and time_in_yellow == 0) or (time_in_yellow == 1)):
             time_in_yellow += 1
-            next_phase = 4
+            next_phase = 4#env.tls.get_next_yellow_phase()
         elif time_in_yellow >= 2:
             time_in_yellow = 0  # Reset yellow phase timer
             
             
         # Implement red phase logic
-        if next_phase != curr_phase and time_in_red < 1:
+        if (curr_phase == 4 and time_in_yellow == 0 and time_in_red < 1):
             time_in_red += 1
             next_phase = 5
         elif time_in_red >= 1:
             time_in_red = 0  # Reset red phase timer
-
-
-        env.tls.set_tls_phase(next_phase)
+            
+        # print("next_phase = ", next_phase)
+        env.tls.set_tls_phase_max_pressure(curr_phase, next_phase)
 
         curr_phase = next_phase
         
@@ -77,6 +78,7 @@ for t in range(num_episodes):
         total_reward += weighted_reward
         is_terminated =  (env.curr_step >= env.SIM_STEPS)
         if is_terminated:
+            print(f"\ntotal_reward = {total_reward}\n")
             rewards.append(total_reward)
             env.terminate()
             plt.plot(rewards)

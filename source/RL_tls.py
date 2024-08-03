@@ -76,10 +76,10 @@ Transition = namedtuple('Transition',
 BATCH_SIZE = 256
 GAMMA = 0.99
 EPS_START = 1
-EPS_END = 0.05
-EPS_DECAY = 100
+EPS_END = 0.1
+EPS_DECAY = 10000
 TAU = 0.001
-LR = 0.001
+LR = 0.003
 
 
 
@@ -104,7 +104,7 @@ if args.plot_mean_and_std:
         checkpoint = torch.load(model_path, map_location='cpu')
         rewards = checkpoint['rewards'].tolist()
         all_rewards.append(rewards)
-        
+
     all_rewards_non_weighted = []
     for model_name in os.listdir(non_weighted_reward_SAVED_MODELS_PATH):
         print("loading model 2 ...")
@@ -112,7 +112,7 @@ if args.plot_mean_and_std:
         checkpoint = torch.load(model_path, map_location='cpu')
         rewards = checkpoint['rewards'].tolist()
         all_rewards_non_weighted.append(rewards)
-        
+
 #     all_rewards = [
 #     [1, 2, 3, 4, 5, 1, 1, 1],
 #     [2, 3, 4, 5, 6],
@@ -125,7 +125,7 @@ if args.plot_mean_and_std:
 #     [9, 10, 11, 12, 13],
 #     [10, 11, 12, 13, 14]
 # ]
- 
+
 #     all_rewards_non_weighted = [
 #     [1, 2, 3, 4, 5, 1, 1, 1],
 #     [2, 3, 4, 5, 6],
@@ -138,7 +138,7 @@ if args.plot_mean_and_std:
 #     [9, 10, 11, 12, 13],
 #     [10, 11, 12, 13, 14]
 # ]
-        
+
     # Find the minimum length of all lists
     min_length = min(len(lst) for lst in all_rewards)
     min_length = min(min_length, min(len(lst) for lst in all_rewards_non_weighted))
@@ -146,7 +146,7 @@ if args.plot_mean_and_std:
     # Truncate each list to the minimum length
     all_rewards = [lst[:min_length] for lst in all_rewards]
     all_rewards_non_weighted = [lst[:min_length] for lst in all_rewards_non_weighted]
-        
+
     # Convert the list of lists into a NumPy array for easier manipulation
     all_rewards_np = np.array(all_rewards)
     all_rewards_non_weighted_np = np.array(all_rewards_non_weighted)
@@ -160,10 +160,10 @@ if args.plot_mean_and_std:
     x = range(len(means))
     plt.plot(x, means, label='train with weighted reward')
     plt.fill_between(x, means - stds, means + stds, color='blue', alpha=0.2)
-    
+
     means = np.mean(all_rewards_non_weighted_np, axis=0)
     stds = np.std(all_rewards_non_weighted_np, axis=0)
-    
+
     x = range(len(means))
     plt.plot(x, means, label='train with non-weighted reward')
     plt.fill_between(x, means - stds, means + stds, color='red', alpha=0.2)
@@ -281,7 +281,7 @@ def optimize_model():
     #                 tf.summary.scalar(f'gradient norm/{name}', param.grad.norm(), num_total_steps)
 
     # gradients norm clipping
-    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), 100)
+    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), 10)
 
     # with train_summary_writer.as_default():
     #     with torch.no_grad():
@@ -314,7 +314,7 @@ def load_model():
     policy_net.load_state_dict(checkpoint['policy_net_state_dict'])
     target_net.load_state_dict(checkpoint['target_net_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    memory = checkpoint['memory']
+    # memory = checkpoint['memory']
     rewards = checkpoint['rewards'].tolist()
     # print("rewards = ", rewards)
     # print("len(memory) = ", len(memory))
@@ -331,7 +331,7 @@ def save_model():
                     'policy_net_state_dict': policy_net.state_dict(),
                     'target_net_state_dict': target_net.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
-                    'memory': memory,
+                    # 'memory': memory,
                     'rewards' : torch.tensor(rewards, dtype=torch.int),
                     }, SAVED_MODEL_PATH)
 
