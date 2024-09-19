@@ -17,6 +17,7 @@ class GenericTLS:
     def __init__(self, tls_id):
         self.tls_id = tls_id
         self.phases_spent_time = [] # time spent in each phase. only counts time spent in current phases loop.
+        self.phases_total_spent_time = []
         self.changed_phase = False
         self.next_phase = None
 
@@ -25,6 +26,7 @@ class GenericTLS:
         sumo_binary = checkBinary('sumo'+ gui)
         traci.start([sumo_binary, '-c', scenario_file])
         self.phases_spent_time = [0]*len(self.get_tls_all_phases())
+        self.phases_total_spent_time = [0]*len(self.get_tls_all_phases())
         self.changed_phase = False
         self.next_phase = None
         self.vehicle_distance_from_tls = []
@@ -89,23 +91,24 @@ class GenericTLS:
     # return (in_vehicles, out_vehicles)
     # in_vehicles: number of vehicles entering the TLS from each lane
     # out_vehicles: number of vehicles leaving the TLS from each lane
-    # def get_num_vehicles_on_each_lane(self):
-    #     in_vehicles = {}
-    #     out_vehicles = {}
-    #     lanes = traci.trafficlight.getControlledLinks(self.tls_id)
-    #     for lane in lanes:
-    #         for link in lane:
-    #             incoming_lane = link[0]
-    #             outgoing_lane = link[1]
-    #             in_vehicles[incoming_lane] = traci.lane.getLastStepVehicleNumber(incoming_lane)
-    #             out_vehicles[outgoing_lane] = traci.lane.getLastStepVehicleNumber(outgoing_lane)
-    #     return in_vehicles, out_vehicles
+    def get_in_out_vehicles_on_each_lane(self):
+        in_vehicles = {}
+        out_vehicles = {}
+        lanes = traci.trafficlight.getControlledLinks(self.tls_id)
+        for lane in lanes:
+            for link in lane:
+                incoming_lane = link[0]
+                outgoing_lane = link[1]
+                in_vehicles[incoming_lane] = traci.lane.getLastStepVehicleNumber(incoming_lane)
+                out_vehicles[outgoing_lane] = traci.lane.getLastStepVehicleNumber(outgoing_lane)
+        return in_vehicles, out_vehicles
 
     def get_num_vehicles_on_each_lane(self):
         num_vehicles = []
         controlled_lanes = traci.trafficlight.getControlledLanes(self.tls_id)
         for lane_id in controlled_lanes:
-            num_vehicles.append(traci.lane.getLastStepVehicleNumber(lane_id))
+            vehicles = traci.lane.getLastStepVehicleNumber(lane_id)
+            num_vehicles.append(vehicles)
         return num_vehicles
     
     # def get_num_vehicles_on_each_lane(self, max_distance):
@@ -210,6 +213,9 @@ class GenericTLS:
     def get_curr_phase_spent_time(self):
         curr_phase_index = self.get_curr_phase()
         return self.phases_spent_time[curr_phase_index]
+    
+    def get_phases_total_spent_time(self):
+        return self.phases_total_spent_time
 
     def get_all_lanes_waiting_vehicles(self):
         lanes_waiting_vehicles = []
@@ -224,6 +230,7 @@ class GenericTLS:
         if self.changed_phase:
             self.phases_spent_time[curr_phase_index] = 0
             self.changed_phase = False
+        self.phases_total_spent_time[curr_phase_index] += 1
         self.phases_spent_time[curr_phase_index] += 1
 
 
@@ -293,6 +300,16 @@ class GenericTLS:
         phases_encoding_list = [0]*num_phases
         phases_encoding_list[curr_phase_index] = 1
         return phases_encoding_list
+    
+    def get_green_lanes_in_curr_phase(self):
+        curr_colors = self.get_curr_colors()
+        green_lanes = []
+        for color in curr_colors:
+            if color.upper() == "G":
+                green_lanes.append(1)
+            else:
+                green_lanes.append(0)
+        return green_lanes
 
     def get_max_pressure_lanes(self):
         """for each green phase, get all incoming
@@ -327,7 +344,7 @@ class GenericTLS:
         if not (1 in self.green_phases_mask):
             self.green_phases_mask = self.get_tls_green_phases_mask()
         #compute pressure for all green movements
-        inc, out = self.get_num_vehicles_on_each_lane()
+        inc, out = self.get_in_out_vehicles_on_each_lane()
         # print("inc = ", inc)
         # print("out = ", out)
         for green_phase in self.green_phases:

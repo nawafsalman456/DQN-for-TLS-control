@@ -21,7 +21,7 @@ class TrafficNetwork:
     def __init__(self):
         self.SIM_STEPS = 3600
         self.MIN_TIME_IN_PHASE = 5
-        self.MAX_TIME_IN_PHASE = 30
+        self.MAX_TIME_IN_PHASE = 35
         self.TIME_IN_YELLOW = 2
         self.TIME_IN_RED = 1
         self.tls = generic_tls.GenericTLS('my_traffic_light')
@@ -31,6 +31,7 @@ class TrafficNetwork:
         self.curr_step = 0
         self.reward = 0
         self.weighted_reward = 0
+        self.non_weighted_reward = 0
         self.state = []
         self.vehicle_positions = []
         self.vehicle_velocities = []
@@ -51,8 +52,10 @@ class TrafficNetwork:
         self.curr_step = 0
         self.reward = 0
         self.weighted_reward = 0
+        self.non_weighted_reward = 0
         self.state = self.get_curr_state()
         self.collect_data = collect_data
+        self.counter = 0
         return self.state
 
     def step(self, action = None, buses_weighted_reward=None):
@@ -70,9 +73,14 @@ class TrafficNetwork:
 
         if time_in_curr_phase >= MAX:
             # if stuck in current phase for a long time, move to next phase
+            # if MAX == self.MAX_TIME_IN_PHASE:
+            #     print("++++++++++++++++++++++++++++++")
             action = 1
         if time_in_curr_phase < MIN:
             # stay in current phase for at least MIN seconds. to prevent fast transitions.
+            # if MIN == self.MIN_TIME_IN_PHASE:
+            #     self.counter += 1
+            #     print("self.counter = ", self.counter)
             action = 0
 
         if action is not None:
@@ -90,12 +98,13 @@ class TrafficNetwork:
         self.curr_step += 1
         self.state = self.get_curr_state()  # build the state. state is the input of DQN
         self.weighted_reward = -self.tls.get_weighted_num_vehicles()
+        self.non_weighted_reward = -traci.vehicle.getIDCount()
         # print("weighted reward = ", self.weighted_reward)
         # print("non-weighted reward = ", -traci.vehicle.getIDCount())
         if buses_weighted_reward:
             self.reward = self.weighted_reward
         else:
-            self.reward = -traci.vehicle.getIDCount()
+            self.reward = self.non_weighted_reward
         is_terminated =  (self.curr_step >= self.SIM_STEPS)
         if is_terminated:
             self.terminate()
@@ -103,13 +112,17 @@ class TrafficNetwork:
     
     def get_weighted_reward(self):
         return self.weighted_reward
+    
+    def get_non_weighted_reward(self):
+        return self.non_weighted_reward
 
     def get_curr_state(self):
         # num_in_vehicles, num_out_vehicles = self.tls.get_num_vehicles_on_each_lane()
         state_list = self.tls.get_curr_phase_encoding() + \
                      [self.tls.get_curr_phase_spent_time()] + \
-                     self.tls.get_num_vehicles_on_each_lane() + \
-                     self.tls.get_all_lanes_waiting_vehicles()
+                     self.tls.get_num_vehicles_on_each_lane()
+                    #  self.tls.get_green_lanes_in_curr_phase() + \
+                    #  self.tls.get_all_lanes_waiting_vehicles()
                     #  list(num_in_vehicles.values()) + \
                     #  list(num_out_vehicles.values()) + \
 

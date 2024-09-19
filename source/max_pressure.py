@@ -18,11 +18,12 @@ args = env.parse_args()
 # set constant seed
 random.seed(args.seed)
 
-sim_file = f"{root}/verif/sim/try/try.sumocfg"
+# sim_file = f"{root}/verif/sim/try/try.sumocfg"
+sim_file = f"{root}/verif/sim/single_tls_4_way/single_tls_4_way.sumocfg"
 state = env.reset(is_gui=args.gui, collect_data=False, sim_file=sim_file)
 
 
-env.MIN_TIME_IN_PHASE = 10
+env.MIN_TIME_IN_PHASE = 5
 env.MAX_TIME_IN_PHASE = 50
 
 green_phases = env.tls.get_tls_green_phases()
@@ -39,8 +40,12 @@ for t in range(num_episodes):
     while True:
         
         next_phase = env.tls.max_pressure()
+
+        colors = env.tls.get_curr_colors()
+        is_red_phase = not("G" in colors) and not("g" in colors) and not("y" in colors)
+        is_yellow_phase = ("y" in colors)
         
-        if next_phase != curr_phase and env.tls.get_curr_phase_spent_time() < env.MIN_TIME_IN_PHASE and curr_phase != 4 and curr_phase != 5:
+        if next_phase != curr_phase and env.tls.get_curr_phase_spent_time() < env.MIN_TIME_IN_PHASE and not(is_red_phase) and not(is_yellow_phase):
             next_phase = curr_phase
             
         # Force change phase if max time in the current phase is exceeded
@@ -48,17 +53,17 @@ for t in range(num_episodes):
             next_phase = env.tls.max_pressure()
 
         # Implement yellow phase logic
-        if curr_phase != 5 and ((next_phase != curr_phase and time_in_yellow == 0) or (time_in_yellow == 1)):
+        if not(is_red_phase) and ((next_phase != curr_phase and time_in_yellow == 0) or (time_in_yellow == 1)):
             time_in_yellow += 1
-            next_phase = 4#env.tls.get_next_yellow_phase()
+            next_phase = 1#env.tls.get_next_yellow_phase()
         elif time_in_yellow >= 2:
             time_in_yellow = 0  # Reset yellow phase timer
             
             
         # Implement red phase logic
-        if (curr_phase == 4 and time_in_yellow == 0 and time_in_red < 1):
+        if (is_yellow_phase and time_in_yellow == 0 and time_in_red < 1):
             time_in_red += 1
-            next_phase = 5
+            next_phase = 2
         elif time_in_red >= 1:
             time_in_red = 0  # Reset red phase timer
             

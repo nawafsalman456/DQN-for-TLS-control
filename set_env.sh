@@ -21,4 +21,7 @@ else
     exit 1
 fi
 
+source $HOME/miniconda3/etc/profile.d/conda.sh
+conda activate sumo_env
+
 echo "set_env completed successfully!"
