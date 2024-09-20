@@ -85,8 +85,8 @@ class GenericTLS:
     #             total_time_loss += traci.vehicle.getTimeLoss(vehicle_id)
     #     return total_time_loss
 
-    # def get_num_controlled_lanes(self):
-    #     return len(traci.trafficlight.getControlledLanes(self.tls_id))
+    def get_num_lanes(self):
+        return len(traci.trafficlight.getControlledLanes(self.tls_id))
 
     # return (in_vehicles, out_vehicles)
     # in_vehicles: number of vehicles entering the TLS from each lane
@@ -111,31 +111,31 @@ class GenericTLS:
             num_vehicles.append(vehicles)
         return num_vehicles
     
-    # def get_num_vehicles_on_each_lane(self, max_distance):
-    #     in_vehicles = {}
-    #     out_vehicles = {}
-    #     lanes = traci.trafficlight.getControlledLinks(self.tls_id)
-    #     for lane in lanes:
-    #         for link in lane:
-    #             incoming_lane = link[0]
-    #             outgoing_lane = link[1]
-    #             in_vehicles[incoming_lane] = 0
-    #             out_vehicles[outgoing_lane] = 0
-    #             in_v_ids = traci.lane.getLastStepVehicleIDs(incoming_lane)
-    #             out_v_ids = traci.lane.getLastStepVehicleIDs(outgoing_lane)
-    #             for vehicle_id in in_v_ids:
-    #                 next_tls_tuple = traci.vehicle.getNextTLS(vehicle_id)
-    #                 if len(next_tls_tuple) > 0:
-    #                     _, _, tls_distance, _ = next_tls_tuple[0]
-    #                     if tls_distance <= max_distance:
-    #                         in_vehicles[incoming_lane] += 1
-    #             for vehicle_id in out_v_ids:
-    #                 next_tls_tuple = traci.vehicle.getNextTLS(vehicle_id)
-    #                 if len(next_tls_tuple) > 0:
-    #                     _, _, tls_distance, _ = next_tls_tuple[0]
-    #                     if tls_distance <= max_distance:
-    #                         out_vehicles[outgoing_lane] += 1
-    #     return in_vehicles, out_vehicles
+    def get_num_vehicles_on_each_lane_with_distance(self, max_distance):
+        in_vehicles = {}
+        out_vehicles = {}
+        lanes = traci.trafficlight.getControlledLinks(self.tls_id)
+        for lane in lanes:
+            for link in lane:
+                incoming_lane = link[0]
+                outgoing_lane = link[1]
+                in_vehicles[incoming_lane] = 0
+                out_vehicles[outgoing_lane] = 0
+                in_v_ids = traci.lane.getLastStepVehicleIDs(incoming_lane)
+                out_v_ids = traci.lane.getLastStepVehicleIDs(outgoing_lane)
+                for vehicle_id in in_v_ids:
+                    next_tls_tuple = traci.vehicle.getNextTLS(vehicle_id)
+                    if len(next_tls_tuple) > 0:
+                        _, _, tls_distance, _ = next_tls_tuple[0]
+                        if tls_distance <= max_distance:
+                            in_vehicles[incoming_lane] += 1
+                for vehicle_id in out_v_ids:
+                    next_tls_tuple = traci.vehicle.getNextTLS(vehicle_id)
+                    if len(next_tls_tuple) > 0:
+                        _, _, tls_distance, _ = next_tls_tuple[0]
+                        if tls_distance <= max_distance:
+                            out_vehicles[outgoing_lane] += 1
+        return in_vehicles, out_vehicles
 
     def get_weighted_num_vehicles_on_each_lane(self):
         in_vehicles = {}
@@ -279,11 +279,12 @@ class GenericTLS:
 
     def set_tls_phase(self, phase_index):
         self.next_phase = phase_index
+
+    def set_max_pressure_tls_phase(self, phase_index):
+        if (self.get_curr_phase() != phase_index):
+            self.green_phases_mask[self.get_curr_phase()] = 0
+        self.next_phase = phase_index
         
-    def set_tls_phase_max_pressure(self, curr_phase, next_phase_index):
-        if next_phase_index != curr_phase:
-            self.green_phases_mask[next_phase_index] = 0
-        self.next_phase = next_phase_index
 
     def get_aggregated_data(self):
         return (self.vehicle_distance_from_tls, self.vehicle_velocities, self.simulation_times)
@@ -341,6 +342,7 @@ class GenericTLS:
         phase_pressure = {}
         no_vehicle_phases = []
         # if selected all green phases in this round, re-set all green phases bits
+        # print("self.green_phases_mask = ", self.green_phases_mask)
         if not (1 in self.green_phases_mask):
             self.green_phases_mask = self.get_tls_green_phases_mask()
         #compute pressure for all green movements
@@ -360,7 +362,7 @@ class GenericTLS:
             #pressure is defined as the number of vehicles in a lane
             inc_pressure = sum([ inc[l] for l in inc_lanes])
             out_pressure = sum([ out[l] for l in out_lanes])
-            phase_pressure[phase_index] = inc_pressure - out_pressure
+            phase_pressure[phase_index] = inc_pressure# - out_pressure
             if inc_pressure == 0 and out_pressure == 0:
                 no_vehicle_phases.append(phase_index)
 
@@ -378,11 +380,8 @@ class GenericTLS:
             phase_pressure = [ p for p in phase_pressure if p[1] == phase_pressure[0][1] ]
             selected_phase = random.choice(phase_pressure)[0]
 
-        # mark selected phase in the mask, so we don't select in in same round
         # print("selected_phase = ", selected_phase)
-        # print("curr_phase = ", curr_phase)
-        # if selected_phase != curr_phase:
-        #     self.green_phases_mask &= ~(1 << selected_phase)
-        # else:
-        #     print("selected_phase = ", selected_phase)
+        # mark selected phase in the mask, so we don't select it in same round
+        # if selected_phase != self.get_curr_phase():
+        #     self.green_phases_mask[selected_phase] = 0
         return selected_phase
