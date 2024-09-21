@@ -4,6 +4,7 @@ import random
 import argparse
 import matplotlib
 import signal
+import sys
 import matplotlib.pyplot as plt
 from collections import namedtuple, deque
 from itertools import count
@@ -17,6 +18,9 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 import traffic_network
+
+sys.path.append(os.path.join(os.path.dirname(__file__), f"{os.environ.get('PROJECT_ROOT')}"))
+from max_pressure_results.results import max_pressure_results
 
 # Define a context manager to temporarily block interrupts
 class BlockInterrupts:
@@ -182,6 +186,16 @@ if args.plot_mean_and_std:
     plt.plot(x, means, label='train with non-weighted reward')
     plt.fill_between(x, means - stds, means + stds, color='red', alpha=0.2)
     plt.legend()
+    
+    # Max Pressure
+    means = [max_pressure_results["rewards_mean"]] * len(means)
+    stds = [max_pressure_results["rewards_std"]] * len(means)
+    means = np.array(means)
+    stds = np.array(stds)
+    x = range(len(means))
+    plt.plot(x, means, label='max pressure')
+    plt.fill_between(x, means - stds, means + stds, color='green', alpha=0.2)
+    plt.legend()
 
     plt.title('Weighted Reward Mean and STD')
     plt.xlabel('episode')
@@ -206,6 +220,16 @@ if args.plot_mean_and_std:
     x = range(len(means))
     plt.plot(x, means, label='train with non-weighted reward')
     plt.fill_between(x, means - stds, means + stds, color='red', alpha=0.2)
+    plt.legend()
+    
+    # Max Pressure
+    means = [max_pressure_results["non_weighted_rewards_mean"]] * len(means)
+    stds = [max_pressure_results["non_weighted_rewards_std"]] * len(means)
+    means = np.array(means)
+    stds = np.array(stds)
+    x = range(len(means))
+    plt.plot(x, means, label='max pressure')
+    plt.fill_between(x, means - stds, means + stds, color='green', alpha=0.2)
     plt.legend()
 
     plt.title('Non-Weighted Reward Mean and STD')
@@ -246,7 +270,7 @@ optimizer = optim.RMSprop(policy_net.parameters(), lr=LR)
 # initialize memory of size 50000000. make sure that it is big enough to save all transitions.
 memory = ReplayMemory(50000000)
 
-num_episodes = 150
+num_episodes = 100
 
 max_total_reward = -float("inf")
 

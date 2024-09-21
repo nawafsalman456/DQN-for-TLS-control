@@ -7,7 +7,7 @@ source set_env.sh
 run_simulation() {
     local seed=$1
     local use_buses_weighted_reward=$2
-    local max_attempts=3
+    local max_attempts=1
     local attempt=0
     local success=false
 

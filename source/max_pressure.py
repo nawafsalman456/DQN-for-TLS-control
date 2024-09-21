@@ -1,6 +1,7 @@
 import random
 from itertools import cycle
 from collections import deque
+import numpy as np
 
 from generic_tls import *
 import traffic_network
@@ -32,9 +33,11 @@ for _ in range(env.tls.get_num_lanes()):
     ALL_RED += "r"
 
 rewards = []
+non_weighted_rewards = []
 
-num_episodes = 1
-for t in range(num_episodes):
+num_runs = 10
+for r in range(num_runs):
+    random.seed(args.seed + r*1234321)
     total_reward = 0
     total_non_weighted_reward = 0
     curr_phase = 0
@@ -96,26 +99,36 @@ for t in range(num_episodes):
         total_non_weighted_reward += non_weighted_reward
         is_terminated =  (env.curr_step >= env.SIM_STEPS)
         if is_terminated:
-            print(f"\ntotal_reward = {total_reward}\n")
+            print(f"\n\ntotal_reward = {total_reward}\n")
             print(f"total_non_weighted_reward = {total_non_weighted_reward}\n")
             rewards.append(total_reward)
+            non_weighted_rewards.append(total_non_weighted_reward)
             env.terminate()
-            plt.plot(rewards)
-            plt.title('Rewards')
-            plt.xlabel('episode')
-            plt.ylabel('Total Reward')
-            # plt.show()
-            plt.savefig(f'imgs/rewards_max_pressure.png')
             break
     
+print("rewards = ", rewards)
+print("non_weighted_rewards = ", non_weighted_rewards)
 
-print(rewards)
-plt.plot(rewards)
-plt.title('Rewards')
-plt.xlabel('episode')
-plt.ylabel('Total Reward')
-# plt.show()
-plt.savefig(f'imgs/rewards_max_pressure.png')
+rewards_mean = np.mean(rewards, axis=0)
+rewards_std = np.std(rewards, axis=0)
 
-print(f"\ntotal_reward = {total_reward}\n")
-env.plot_space_time(0)
+non_weighted_rewards_mean = np.mean(non_weighted_rewards, axis=0)
+non_weighted_rewards_std = np.std(non_weighted_rewards, axis=0)
+
+print("rewards_mean = ", rewards_mean)
+print("rewards_std = ", rewards_std)
+
+print("non_weighted_rewards_mean = ", non_weighted_rewards_mean)
+print("non_weighted_rewards_std = ", non_weighted_rewards_std)
+
+res_str = "#auto generated from max_pressure.py\n"
+res_str += "max_pressure_results = {\n"
+res_str += f"    \"rewards_mean\" : {rewards_mean},\n"
+res_str += f"    \"rewards_std\" : {rewards_std},\n"
+res_str += f"    \"non_weighted_rewards_mean\" : {non_weighted_rewards_mean},\n"
+res_str += f"    \"non_weighted_rewards_std\" : {non_weighted_rewards_std}\n"
+res_str += "}"
+
+RESULTS_FILE_PATH = f"{root}/max_pressure_results/results.py"
+with open(RESULTS_FILE_PATH, "w") as f:
+    f.write(res_str)
