@@ -5,7 +5,7 @@ import torch
 import numpy as np
 from collections import defaultdict, Counter
 sys.path.append(os.path.join(os.path.dirname(__file__), f"{os.environ.get('SUMO_HOME')}\\tools"))
-
+import time
 import traci
 from sumolib import checkBinary
 
@@ -17,6 +17,9 @@ class GenericTLS:
         self.phases_total_spent_time = []
         self.changed_phase = False
         self.next_phase = None
+        self.num_cars = 0
+        self.num_buses = 0
+        self.vtypes_map = {}
 
     def start_simulation(self, scenario_file, is_gui = False):
         gui = "-gui" if is_gui else ""
@@ -26,6 +29,9 @@ class GenericTLS:
         self.phases_total_spent_time = [0]*len(self.get_tls_all_phases())
         self.changed_phase = False
         self.next_phase = None
+        self.num_cars = 0
+        self.num_buses = 0
+        self.vtypes_map = {}
         self.vehicle_distance_from_tls = []
         self.vehicle_velocities = []
         self.simulation_times = []
@@ -48,6 +54,7 @@ class GenericTLS:
         if curr_phase != prev_phase:
             self.changed_phase = True
 
+        self.update_total_num_cars_and_buses()
         self.update_curr_phase_spent_time()
 
     def get_tls_green_phases_mask(self):
@@ -56,31 +63,6 @@ class GenericTLS:
             if ("g" in p.state) or ("G" in p.state):
                 green_phases_mask[i] = 1
         return green_phases_mask
-
-    # # return list of vehicles waiting for this TLS, each entry:
-    # # (vehicle_id, distance_to_tls, tls_color)
-    # # tls_color : r, y, g, G
-    # def get_waiting_vehicles_on_tls(self):
-    #     waiting_vehicles = []
-    #     controlled_lanes = traci.trafficlight.getControlledLanes(self.tls_id)
-    #     for lane_id in controlled_lanes:
-    #         vehicles_on_lane = traci.lane.getLastStepVehicleIDs(lane_id)
-    #         for vehicle_id in vehicles_on_lane:
-    #             if traci.vehicle.getSpeed(vehicle_id) == 0:
-    #                 next_tls_tuple = traci.vehicle.getNextTLS(vehicle_id)
-    #                 next_tls_id, tls_index, tls_distance, tls_color = next_tls_tuple[0]
-    #                 assert(self.tls_id == next_tls_id)
-    #                 waiting_vehicles.append((vehicle_id, tls_distance, tls_color))
-    #     return waiting_vehicles
-
-    # def get_time_loss(self):
-    #     total_time_loss = 0
-    #     controlled_lanes = traci.trafficlight.getControlledLanes(self.tls_id)
-    #     for lane_id in controlled_lanes:
-    #         vehicles_on_lane = traci.lane.getLastStepVehicleIDs(lane_id)
-    #         for vehicle_id in vehicles_on_lane:
-    #             total_time_loss += traci.vehicle.getTimeLoss(vehicle_id)
-    #     return total_time_loss
 
     def get_num_lanes(self):
         return len(traci.trafficlight.getControlledLanes(self.tls_id))
@@ -108,32 +90,6 @@ class GenericTLS:
             num_vehicles.append(vehicles)
         return num_vehicles
     
-    def get_num_vehicles_on_each_lane_with_distance(self, max_distance):
-        in_vehicles = {}
-        out_vehicles = {}
-        lanes = traci.trafficlight.getControlledLinks(self.tls_id)
-        for lane in lanes:
-            for link in lane:
-                incoming_lane = link[0]
-                outgoing_lane = link[1]
-                in_vehicles[incoming_lane] = 0
-                out_vehicles[outgoing_lane] = 0
-                in_v_ids = traci.lane.getLastStepVehicleIDs(incoming_lane)
-                out_v_ids = traci.lane.getLastStepVehicleIDs(outgoing_lane)
-                for vehicle_id in in_v_ids:
-                    next_tls_tuple = traci.vehicle.getNextTLS(vehicle_id)
-                    if len(next_tls_tuple) > 0:
-                        _, _, tls_distance, _ = next_tls_tuple[0]
-                        if tls_distance <= max_distance:
-                            in_vehicles[incoming_lane] += 1
-                for vehicle_id in out_v_ids:
-                    next_tls_tuple = traci.vehicle.getNextTLS(vehicle_id)
-                    if len(next_tls_tuple) > 0:
-                        _, _, tls_distance, _ = next_tls_tuple[0]
-                        if tls_distance <= max_distance:
-                            out_vehicles[outgoing_lane] += 1
-        return in_vehicles, out_vehicles
-
     def get_num_cars_and_buses_on_each_lane(self):
         num_cars = []
         num_buses = []
@@ -144,46 +100,11 @@ class GenericTLS:
             num_buses_curr_lane = 0
             for vehicle_id in vehicles:
                 vtype = traci.vehicle.getTypeID(vehicle_id)
-                num_cars_curr_lane += (vtype == "DEFAULT_VEHTYPE")
-                num_buses_curr_lane += (vtype == "DEFAULT_CONTAINERTYPE")
+                num_cars_curr_lane += (vtype == "CAR_TYPE")
+                num_buses_curr_lane += (vtype == "BUS_TYPE")
             num_cars.append(num_cars_curr_lane)
             num_buses.append(num_buses_curr_lane)
         return num_cars, num_buses
-
-    # def get_num_vehicles_on_each_lane_with_limited_distance(self, max_distance):
-    #     num_vehicles = []
-    #     controlled_lanes = traci.trafficlight.getControlledLanes(self.tls_id)
-    #     for lane_id in controlled_lanes:
-    #         vehicles = traci.lane.getLastStepVehicleIDs(lane_id)
-    #         num_vehicles_on_lane = 0
-    #         for vehicle_id in vehicles:
-    #             next_tls_tuple = traci.vehicle.getNextTLS(vehicle_id)
-    #             next_tls_id, tls_index, tls_distance, tls_color = next_tls_tuple[0]
-    #             if tls_distance <= max_distance:
-    #                 num_vehicles_on_lane += 1
-    #         num_vehicles.append(num_vehicles_on_lane)
-    #     return num_vehicles
-
-    # def get_waiting_time_on_each_lane(self):
-    #     waiting_time = []
-    #     controlled_lanes = traci.trafficlight.getControlledLanes(self.tls_id)
-    #     for lane_id in controlled_lanes:
-    #         waiting_time.append(traci.lane.getWaitingTime(lane_id))
-    #     return waiting_time
-
-    # def get_min_vehicle_distance_on_each_lane(self):
-    #     min_distances = []
-    #     controlled_lanes = traci.trafficlight.getControlledLanes(self.tls_id)
-    #     for lane_id in controlled_lanes:
-    #         min_distance_to_tls = float("inf")
-    #         vehicles = traci.lane.getLastStepVehicleIDs(lane_id)
-    #         for vehicle_id in vehicles:
-    #             next_tls_tuple = traci.vehicle.getNextTLS(vehicle_id)
-    #             next_tls_id, tls_index, tls_distance, tls_color = next_tls_tuple[0]
-    #             assert(self.tls_id == next_tls_id)
-    #             min_distance_to_tls = min(min_distance_to_tls, tls_distance)
-    #         min_distances.append(min_distance_to_tls)
-    #     return min_distances
 
     def get_tls_all_phases(self):
         all_program_logics = traci.trafficlight.getAllProgramLogics(self.tls_id)
@@ -208,14 +129,6 @@ class GenericTLS:
     def get_phases_total_spent_time(self):
         return self.phases_total_spent_time
 
-    def get_all_lanes_waiting_vehicles(self):
-        lanes_waiting_vehicles = []
-        controlled_lanes = traci.trafficlight.getControlledLanes(self.tls_id)
-        for lane_id in controlled_lanes:
-            num_waiting_vehicles = traci.lane.getLastStepHaltingNumber(lane_id)
-            lanes_waiting_vehicles.append(num_waiting_vehicles)
-        return lanes_waiting_vehicles
-
     def update_curr_phase_spent_time(self):
         curr_phase_index = self.get_curr_phase()
         if self.changed_phase:
@@ -223,7 +136,6 @@ class GenericTLS:
             self.changed_phase = False
         self.phases_total_spent_time[curr_phase_index] += 1
         self.phases_spent_time[curr_phase_index] += 1
-
 
     def aggregate_data(self):
         controlled_lanes = traci.trafficlight.getControlledLanes(self.tls_id)
@@ -253,25 +165,50 @@ class GenericTLS:
 
         return vehicle_types_num
 
-    def get_total_num_cars_and_buses(self):
+    # don't use, very slow in case of high pressure
+    def get_total_num_cars_and_buses_old_dont_use(self):
 
         vehicle_types_num = self.get_num_vehicle_of_each_type()
 
-        num_cars = vehicle_types_num.get("DEFAULT_VEHTYPE", 0)
-        num_buses = vehicle_types_num.get("DEFAULT_CONTAINERTYPE", 0)
+        num_cars = vehicle_types_num.get("CAR_TYPE", 0)
+        num_buses = vehicle_types_num.get("BUS_TYPE", 0)
 
         # print("num_cars = ", num_cars)
         # print("num_buses = ", num_buses)
         # assert(num_cars + num_buses == traci.vehicle.getIDCount())
         
         return num_cars, num_buses
+    
+    def get_total_num_cars_and_buses(self):
+        return self.num_cars, self.num_buses
+    
+    def update_total_num_cars_and_buses(self):
+        # Get the list of vehicles that have entered (departed) and left (arrived)
+        departed_vehicles = traci.simulation.getDepartedIDList()
+        arrived_vehicles = traci.simulation.getArrivedIDList()
 
+        # Update the count based on departed vehicles
+        for veh_id in departed_vehicles:
+            vtype = traci.vehicle.getTypeID(veh_id)
+            self.vtypes_map[veh_id] = vtype  # Store the type
+            self.num_cars += (vtype == "CAR_TYPE")
+            self.num_buses += (vtype == "BUS_TYPE")
+
+        # Update the count based on arrived vehicles (subtract vehicles that have left)
+        for veh_id in arrived_vehicles:
+            vtype = self.vtypes_map.pop(veh_id, None)  # Retrieve and remove the type
+            self.num_cars -= (vtype == "CAR_TYPE")
+            self.num_buses -= (vtype == "BUS_TYPE")
+            
     def set_tls_phase(self, phase_index):
         self.next_phase = phase_index
 
     def set_max_pressure_tls_phase(self, phase_index):
         if (self.get_curr_phase() != phase_index):
             self.green_phases_mask[self.get_curr_phase()] = 0
+        # if selected all green phases in this round, re-set all green phases bits
+        if (sum(self.green_phases_mask) == 1):
+            self.green_phases_mask = self.get_tls_green_phases_mask()
         self.next_phase = phase_index
         
 
@@ -330,25 +267,18 @@ class GenericTLS:
     def max_pressure(self):
         phase_pressure = {}
         no_vehicle_phases = []
-        # if selected all green phases in this round, re-set all green phases bits
-        # print("self.green_phases_mask = ", self.green_phases_mask)
-        if not (1 in self.green_phases_mask):
-            self.green_phases_mask = self.get_tls_green_phases_mask()
         #compute pressure for all green movements
         inc, out = self.get_in_out_vehicles_on_each_lane()
-        # print("inc = ", inc)
-        # print("out = ", out)
         for green_phase in self.green_phases:
             phase_index, phase_state = green_phase
             # if already selected this phase in current round, skip it.
             if self.green_phases_mask[phase_index] == 0:
-                # print("phase_index = ", phase_index)
                 continue
             inc_lanes = self.max_pressure_lanes[phase_index]['inc']
             out_lanes = self.max_pressure_lanes[phase_index]['out']
             # print("phase_index = ", phase_index)
             # print("inc_lanes = ", inc_lanes)
-            # print("out_lanes = ", out_lanes)
+            # print("inc = ", inc)
 
 
             #pressure is defined as the number of vehicles in a lane

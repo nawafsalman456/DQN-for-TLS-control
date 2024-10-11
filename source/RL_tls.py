@@ -5,6 +5,7 @@ import argparse
 import matplotlib
 import signal
 import sys
+import importlib
 import matplotlib.pyplot as plt
 from collections import namedtuple, deque
 from itertools import count
@@ -20,7 +21,6 @@ import torch.nn.functional as F
 import traffic_network
 
 sys.path.append(os.path.join(os.path.dirname(__file__), f"{os.environ.get('PROJECT_ROOT')}"))
-from max_pressure_results.results import max_pressure_results
 
 # Define a context manager to temporarily block interrupts
 class BlockInterrupts:
@@ -32,16 +32,23 @@ class BlockInterrupts:
         signal.signal(signal.SIGINT, self.old_handler)
 
 
-class ReplayMemory(object):
-
+class ReplayMemory:
     def __init__(self, capacity):
-        self.memory = deque([], maxlen=capacity)
+        self.capacity = capacity
+        self.memory = []
+        self.position = 0
 
     def push(self, *args):
         """Save a transition"""
-        self.memory.append(Transition(*args))
+        if len(self.memory) < self.capacity:
+            self.memory.append(Transition(*args))
+        else:
+            # Replace the oldest transition with the new one
+            self.memory[self.position] = Transition(*args)
+            self.position = (self.position + 1) % self.capacity
 
     def sample(self, batch_size):
+        """Sample a batch of transitions"""
         return random.sample(self.memory, batch_size)
 
     def __len__(self):
@@ -51,16 +58,28 @@ class DQN(nn.Module):
 
     def __init__(self, n_observations, n_actions):
         super(DQN, self).__init__()
-        self.layer1 = nn.Linear(n_observations, 1024) # TODO: init params ?
-        self.layer2 = nn.Linear(1024, 1024)
-        self.layer3 = nn.Linear(1024, n_actions)
+        self.layer1 = nn.Linear(n_observations, 128) # TODO: init params ?
+        self.layer2 = nn.Linear(128, 128)
+        self.layer3 = nn.Linear(128, 128)
+        self.layer4 = nn.Linear(128, n_actions)
+        
+        self._initialize_weights()
+    
+    def _initialize_weights(self):
+        """Initialize weights using Kaiming (He) initialization."""
+        for layer in self.children():
+            if isinstance(layer, nn.Linear):
+                nn.init.kaiming_uniform_(layer.weight, nonlinearity='relu')
+                if layer.bias is not None:
+                    nn.init.zeros_(layer.bias)
 
     # Called with either one element to determine next action, or a batch
     # during optimization. Returns tensor([[stay0exp,next0exp]...]).
     def forward(self, x):
         x = F.relu(self.layer1(x))
         x = F.relu(self.layer2(x))
-        return self.layer3(x)
+        x = F.relu(self.layer3(x))
+        return self.layer4(x)
 
 
 PROJECT_ROOT = os.environ.get('PROJECT_ROOT')
@@ -77,6 +96,21 @@ env = traffic_network.TrafficNetwork()
 # parse arguments
 args = env.parse_args()
 
+sim_dir = None
+if args.sim == "high_pressure":
+    sim_dir = f"{PROJECT_ROOT}/sim/high_pressure/"
+elif args.sim == "low_pressure":
+    sim_dir = f"{PROJECT_ROOT}/sim/low_pressure/"
+else:
+    raise Exception("need to specify simulation type. run script with --sim <SIM_TYPE>. SIM_TYPE is either high_pressure or low_pressure")
+
+# import max_pressure_results
+sys.path.insert(0, sim_dir)
+module_name = "max_pressure_results.results"
+module = importlib.import_module(module_name)
+max_pressure_results = module.max_pressure_results
+
+
 # BATCH_SIZE is the number of transitions sampled from the replay buffer
 # GAMMA is the discount factor
 # TAU is the update rate of the target network
@@ -85,16 +119,16 @@ BATCH_SIZE = 128
 GAMMA = 0.99
 EPS_START = 0.9
 EPS_END = 0.05
-EPS_DECAY = 60000
-TAU = 0.005
-LR = 0.0008
+EPS_DECAY = 20000
+TAU = 0.001
+LR = 0.0015
 
 # set constant seed
 random.seed(args.seed)
 
 if args.plot_mean_and_std:
-    SAVED_MODELS_PATH = f"{PROJECT_ROOT}/saved_models/"
-    non_weighted_reward_SAVED_MODELS_PATH = f"{PROJECT_ROOT}/saved_models_non_weighted_reward/"
+    SAVED_MODELS_PATH = f"{sim_dir}/saved_models/weighted_reward/"
+    non_weighted_reward_SAVED_MODELS_PATH = f"{sim_dir}/saved_models/non_weighted_reward/"
 
     all_rewards = []
     all_non_weighted_rewards = []
@@ -194,7 +228,7 @@ if args.plot_mean_and_std:
     plt.xlabel('episode')
     plt.ylabel('Reward')
     plt.grid(True)
-    plt.savefig(f'imgs/weighted_rewards_mean_and_std.png')
+    plt.savefig(f'{sim_dir}/plots/weighted_reward/mean_and_std.png')
     
     
     # Create second plot of non-weighted rewards
@@ -229,14 +263,14 @@ if args.plot_mean_and_std:
     plt.xlabel('episode')
     plt.ylabel('Reward')
     plt.grid(True)
-    plt.savefig(f'imgs/non_weighted_rewards_mean_and_std.png')
+    plt.savefig(f'{sim_dir}/plots/non_weighted_reward/mean_and_std.png')
     exit(0)
 
 
 if args.buses_weighted_reward:
-    SAVED_MODEL_PATH = f"{PROJECT_ROOT}/saved_models/RL_model_{LR}_{TAU}_{args.seed}"
+    SAVED_MODEL_PATH = f"{sim_dir}/saved_models/weighted_reward/RL_model_{LR}_{TAU}_{args.seed}"
 else:
-    SAVED_MODEL_PATH = f"{PROJECT_ROOT}/saved_models_non_weighted_reward/RL_model_{LR}_{TAU}_{args.seed}"
+    SAVED_MODEL_PATH = f"{sim_dir}/saved_models/non_weighted_reward/RL_model_{LR}_{TAU}_{args.seed}"
 
 train_summary_writer = None
 if not args.test and args.debug:
@@ -249,7 +283,7 @@ if not args.test and args.debug:
 
 
 # Get the number of state observations and actions
-state = env.reset()
+state = env.reset(sim_file=f"{sim_dir}/sumo/single_tls_4_way.sumocfg")
 n_observations = len(state)
 n_actions = env.get_num_actions()
 
@@ -264,7 +298,7 @@ optimizer = optim.RMSprop(policy_net.parameters(), lr=LR)
 # initialize memory of size 50000000. make sure that it is big enough to save all transitions.
 memory = ReplayMemory(50000000)
 
-num_episodes = 150
+num_episodes = 200
 
 max_total_reward = -float("inf")
 
@@ -285,10 +319,6 @@ def select_action(state):
             # t.max(1) will return the largest column value of each row.
             # second column on max result is index of where max element was
             # found, so we pick action with the larger expected reward.
-            # action_score = policy_net(state)
-            # action_prob = F.softmax(action_score / 0.35, dim=1)
-            # selected_action = torch.multinomial(action_prob, num_samples=1)
-            # return selected_action
             return policy_net(state).max(1).indices.view(1, 1)
     else:
         return torch.tensor([env.sample_random_action()], device=device, dtype=torch.long)
@@ -308,9 +338,9 @@ def optimize_model():
                                           batch.next_state)), device=device, dtype=torch.bool)
     non_final_next_states = torch.cat(list(filter(lambda s: s is not None, batch.next_state)))
 
-    state_batch = torch.cat(batch.state)
-    action_batch = torch.cat(batch.action)
-    reward_batch = torch.cat(batch.reward)
+    state_batch = torch.cat(batch.state).to(device)
+    action_batch = torch.cat(batch.action).to(device)
+    reward_batch = torch.cat(batch.reward).to(device)
 
     # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
     # columns of actions taken. These are the actions which would've been taken
@@ -344,7 +374,7 @@ def optimize_model():
                         tf.summary.scalar(f'gradient norm/{name}', param.grad.cpu().norm(), num_total_steps)
 
     # gradients norm clipping
-    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), 100)
+    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), 20)
 
     if train_summary_writer:
         with train_summary_writer.as_default():
@@ -372,7 +402,7 @@ def plot_rewards():
     plt.xlabel('episode')
     plt.ylabel('Total Reward')
     # plt.show()
-    plt.savefig(f'imgs/rewards_{args.seed}_{args.buses_weighted_reward}_{LR}.png')
+    plt.savefig(f'{sim_dir}/plots/weighted_reward/rewards_{args.seed}_{args.buses_weighted_reward}_{LR}.png')
     
     plt.figure()
     plt.plot(non_weighted_rewards)
@@ -380,7 +410,7 @@ def plot_rewards():
     plt.xlabel('episode')
     plt.ylabel('Total Reward')
     # plt.show()
-    plt.savefig(f'imgs/non_weighted/rewards_{args.seed}_{args.buses_weighted_reward}_{LR}.png')
+    plt.savefig(f'{sim_dir}/plots/non_weighted_reward/rewards_{args.seed}_{args.buses_weighted_reward}_{LR}.png')
 
 def load_model():
     global rewards, memory, non_weighted_rewards
@@ -437,7 +467,7 @@ def finalize_episode(total_reward, i_episode, non_weighted_reward):
     #             #     if param.grad is not None:
     #             #         tf.summary.histogram(name + "/gradient_target_net", param.grad.cpu(), i_episode)
     #             #         tf.summary.histogram(name + "/target_net", param, i_episode)
-    if args.save_model and (i_episode % 10 == 0):   # save every 10 episodes
+    if args.save_model:
         print(f"Saving the model ...")
         save_model()
         print(f"*** Saved checkpoint at episode {i_episode+1}")
@@ -447,7 +477,7 @@ def train_model(num_episodes):
         # collect per-step data only in last episode.
         is_last_episode = (i_episode == num_episodes-1)
         # Initialize the environment and get its state
-        state = env.reset(is_gui=args.gui, collect_data=is_last_episode)
+        state = env.reset(is_gui=args.gui, collect_data=is_last_episode, sim_file=f"{sim_dir}/sumo/single_tls_4_way.sumocfg")
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
         total_reward = 0
         total_non_weighted_reward = 0
@@ -475,11 +505,10 @@ def train_model(num_episodes):
 
             # Soft update of the target network's weights
             # θ′ ← τ θ + (1 −τ )θ′
-            target_net_state_dict = target_net.state_dict()
-            policy_net_state_dict = policy_net.state_dict()
-            for key in policy_net_state_dict:
-                target_net_state_dict[key] = policy_net_state_dict[key]*TAU + target_net_state_dict[key]*(1-TAU)
-            target_net.load_state_dict(target_net_state_dict)
+            # Iterate over the parameters directly, without accessing state_dict
+            with torch.no_grad():
+                for target_param, policy_param in zip(target_net.parameters(), policy_net.parameters()):
+                    target_param.data.copy_(target_param.data * (1.0 - TAU) + policy_param.data * TAU)
 
             if terminated:
                 finalize_episode(total_reward, i_episode, total_non_weighted_reward)
@@ -490,7 +519,7 @@ def train_model(num_episodes):
 def test_model():
 
     # Initialize the environment and get its state
-    state = env.reset(is_gui=args.gui, collect_data=True)
+    state = env.reset(is_gui=args.gui, collect_data=True, sim_file=f"{sim_dir}/sumo/single_tls_4_way.sumocfg")
     state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
     total_reward = 0
     total_non_weighted_reward = 0

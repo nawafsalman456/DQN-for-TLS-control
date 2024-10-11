@@ -1,35 +1,34 @@
-to clone the repo, write in git bash or CMD:
+clone the repo:
     git clone https://YOUR_USERNAME@github.com/nawafsalman456/ProjectA.git
 
 after cloning the repo:
-    1- open Windows terminal
-    2- go to project root
-    3- run set_env.bat from the terminal
+    1- open terminal in project root
+    2- run in terminal: source set_env.sh
 
+train the main algorithm (RL):
+    ./run.sh
 
-to run specific test:
-    python %PROJECT_ROOT%\verif\tests\test.py
+run max pressure algorithm:
+    ./max_pressure.sh
 
+plot graphs:
+    ./plot.sh
 
-to run all the tests:
-    python %PROJECT_ROOT%\verif\runner\run_all_tests.py
-
-to run the main algorithm (RL):
-    python %PROJECT_ROOT%\source\RL_tls.py
-
-#TODO - update this README file
-
-to run in debug mode:
-    - run RL_tls.py with flag --debug
-    - start TensorBoard in terminal:
+run in debug mode:
+    1- run RL_tls.py with flag --debug
+    2- start TensorBoard in terminal:
           tensorboard --logdir=logs/train/ --port=6006
-    - Open TensorBoard in local web browser:
+    3- Open TensorBoard in local web browser:
           http://localhost:6006
 
-nohup ./run.sh &
+train in background (continues to run after closing ssh connection):
+    nohup ./run.sh &
 
-nvidia-smi
+check GPU status:
+    nvidia-smi
 
-fuser -v /dev/nvidia0 -k
+terminate all running tasks on GPU:
+    fuser -v /dev/nvidia0 -k
 
-ps -ef | grep run.sh
+show all running jobs:
+    ps -ef | grep run.sh

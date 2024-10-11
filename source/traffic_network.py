@@ -1,6 +1,7 @@
 import os
 import sys
 import argparse
+import time
 import matplotlib.pyplot as plt
 sys.path.append(os.path.join(os.path.dirname(__file__), f"{os.environ.get('SUMO_HOME')}\\tools"))
 
@@ -25,7 +26,7 @@ class TrafficNetwork:
         self.TIME_IN_YELLOW = 2
         self.TIME_IN_RED = 1
         self.CAR_WEIGHT = 1
-        self.BUS_WEIGHT = 30
+        self.BUS_WEIGHT = 15
         self.tls = generic_tls.GenericTLS('my_traffic_light')
         self.tls_curr_phase = 0  # start from phase 0
         self.collect_data = False
@@ -45,7 +46,6 @@ class TrafficNetwork:
         self.action_space = [0, 1]  # action space for each TLS : 0 - stay in current state. 1 - move to next state.
 
     def reset(self, is_gui=False, collect_data=False, sim_file = f"{root}/verif/sim/single_tls_4_way/single_tls_4_way.sumocfg"):
-        # sim_file = f"{root}/verif/sim/single_tls_4_way/single_tls_4_way.sumocfg"
         try:
             self.tls.start_simulation(sim_file, is_gui)
         except traci.exceptions.TraCIException:
@@ -87,14 +87,9 @@ class TrafficNetwork:
 
         if time_in_curr_phase >= MAX:
             # if stuck in current phase for a long time, move to next phase
-            # if MAX == self.MAX_TIME_IN_PHASE:
-            #     print("++++++++++++++++++++++++++++++")
             action = 1
         if time_in_curr_phase < MIN:
             # stay in current phase for at least MIN seconds. to prevent fast transitions.
-            # if MIN == self.MIN_TIME_IN_PHASE:
-            #     self.counter += 1
-            #     print("self.counter = ", self.counter)
             action = 0
 
         if action is not None:
@@ -110,8 +105,8 @@ class TrafficNetwork:
             self.tls.aggregate_data()
             
         self.num_cars_on_each_lane, self.num_buses_on_each_lane = self.tls.get_num_cars_and_buses_on_each_lane()
-        self.weighted_num_vehicles_on_each_lane = self.get_weighted_num_vehicles_on_each_lane()
-        self.num_vehicles_on_each_lane = self.get_num_vehicles_on_each_lane()
+        # self.weighted_num_vehicles_on_each_lane = self.get_weighted_num_vehicles_on_each_lane()
+        # self.num_vehicles_on_each_lane = self.get_num_vehicles_on_each_lane()
 
         total_num_cars, total_num_buses = self.tls.get_total_num_cars_and_buses()
 
@@ -119,8 +114,6 @@ class TrafficNetwork:
         self.state = self.get_curr_state(buses_weighted_reward)  # build the state. state is the input of DQN
         self.weighted_reward = -(total_num_cars * self.CAR_WEIGHT + total_num_buses * self.BUS_WEIGHT)
         self.non_weighted_reward = -(total_num_cars + total_num_buses)
-        # print("weighted reward = ", self.weighted_reward)
-        # print("non-weighted reward = ", -traci.vehicle.getIDCount())
         if buses_weighted_reward:
             self.reward = self.weighted_reward
         else:
@@ -149,19 +142,14 @@ class TrafficNetwork:
         return num_vehicles
     
     def get_curr_state(self, buses_weighted_reward=False):
-        # num_in_vehicles, num_out_vehicles = self.tls.get_num_vehicles_on_each_lane()
         state_list = self.tls.get_curr_phase_encoding() + \
-                     [self.tls.get_curr_phase_spent_time()]
-                     
-        if buses_weighted_reward:
-            state_list += self.weighted_num_vehicles_on_each_lane
-        else:
-            state_list += self.num_vehicles_on_each_lane
-                    #  self.tls.get_green_lanes_in_curr_phase() + \
-                    #  self.tls.get_all_lanes_waiting_vehicles()
-                    #  list(num_in_vehicles.values()) + \
-                    #  list(num_out_vehicles.values()) + \
-
+                     [self.tls.get_curr_phase_spent_time()] + \
+                     self.num_cars_on_each_lane + \
+                     self.num_buses_on_each_lane
+        # if buses_weighted_reward:
+        #     state_list += self.weighted_num_vehicles_on_each_lane
+        # else:
+        #     state_list += self.num_vehicles_on_each_lane
         return state_list
 
     def get_num_actions(self):
@@ -175,6 +163,7 @@ class TrafficNetwork:
 
     def parse_args(self):
         parser = argparse.ArgumentParser()
+        parser.add_argument('--sim', type=str, default=None)
         parser.add_argument('--debug', action='store_true')
         parser.add_argument('--gui', action='store_true')
         parser.add_argument('--test', action='store_true')
