@@ -51,18 +51,16 @@ class DQN(nn.Module):
 
     def __init__(self, n_observations, n_actions):
         super(DQN, self).__init__()
-        self.layer1 = nn.Linear(n_observations, 512) # TODO: init params ?
-        self.layer2 = nn.Linear(512, 512)
-        self.layer3 = nn.Linear(512, 512)
-        self.layer4 = nn.Linear(512, n_actions)
+        self.layer1 = nn.Linear(n_observations, 1024) # TODO: init params ?
+        self.layer2 = nn.Linear(1024, 1024)
+        self.layer3 = nn.Linear(1024, n_actions)
 
     # Called with either one element to determine next action, or a batch
     # during optimization. Returns tensor([[stay0exp,next0exp]...]).
     def forward(self, x):
         x = F.relu(self.layer1(x))
         x = F.relu(self.layer2(x))
-        x = F.relu(self.layer3(x))
-        return self.layer4(x)
+        return self.layer3(x)
 
 
 PROJECT_ROOT = os.environ.get('PROJECT_ROOT')
@@ -73,6 +71,12 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
+# initialize traffic environment
+env = traffic_network.TrafficNetwork()
+
+# parse arguments
+args = env.parse_args()
+
 # BATCH_SIZE is the number of transitions sampled from the replay buffer
 # GAMMA is the discount factor
 # TAU is the update rate of the target network
@@ -80,21 +84,10 @@ Transition = namedtuple('Transition',
 BATCH_SIZE = 128
 GAMMA = 0.99
 EPS_START = 0.9
-EPS_END = 0.01
-EPS_DECAY = 32000
+EPS_END = 0.05
+EPS_DECAY = 60000
 TAU = 0.005
 LR = 0.0008
-
-
-
-# initialize traffic environment
-env = traffic_network.TrafficNetwork()
-
-# parse arguments
-args = env.parse_args()
-
-# if args.buses_weighted_reward:
-#     LR = 0.001
 
 # set constant seed
 random.seed(args.seed)
@@ -176,14 +169,14 @@ if args.plot_mean_and_std:
     # Create a plot
     plt.figure(figsize=(10, 5))
     x = range(len(means))
-    plt.plot(x, means, label='train with weighted reward')
+    plt.plot(x, means, label='DQN train with weighted reward')
     plt.fill_between(x, means - stds, means + stds, color='blue', alpha=0.2)
 
     means = np.mean(all_rewards_trained_with_non_weighted_np, axis=0)
     stds = np.std(all_rewards_trained_with_non_weighted_np, axis=0)
 
     x = range(len(means))
-    plt.plot(x, means, label='train with non-weighted reward')
+    plt.plot(x, means, label='DQN train with non-weighted reward')
     plt.fill_between(x, means - stds, means + stds, color='red', alpha=0.2)
     plt.legend()
     
@@ -245,10 +238,11 @@ if args.buses_weighted_reward:
 else:
     SAVED_MODEL_PATH = f"{PROJECT_ROOT}/saved_models_non_weighted_reward/RL_model_{LR}_{TAU}_{args.seed}"
 
+train_summary_writer = None
 if not args.test and args.debug:
     # initialize Tensorflow writers
     current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
-    train_log_dir = f'{PROJECT_ROOT}/logs/train/' + current_time + f"_LR_{LR}_TAU_{TAU}"
+    train_log_dir = f'{PROJECT_ROOT}/logs/train/' + current_time + f"_{LR}_{TAU}_{args.seed}_{args.buses_weighted_reward}"
     # test_log_dir = f'{PROJECT_ROOT}/logs/test/' + current_time
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
     # test_summary_writer = tf.summary.create_file_writer(test_log_dir)
@@ -270,7 +264,7 @@ optimizer = optim.RMSprop(policy_net.parameters(), lr=LR)
 # initialize memory of size 50000000. make sure that it is big enough to save all transitions.
 memory = ReplayMemory(50000000)
 
-num_episodes = 100
+num_episodes = 150
 
 max_total_reward = -float("inf")
 
@@ -342,20 +336,22 @@ def optimize_model():
     optimizer.zero_grad()
     loss.backward()
 
-    # with train_summary_writer.as_default():
-    #     with torch.no_grad():
-    #         for name, param in policy_net.named_parameters():
-    #             if param.grad is not None:
-    #                 tf.summary.scalar(f'gradient norm/{name}', param.grad.norm(), num_total_steps)
+    if train_summary_writer:
+        with train_summary_writer.as_default():
+            with torch.no_grad():
+                for name, param in policy_net.named_parameters():
+                    if param.grad is not None:
+                        tf.summary.scalar(f'gradient norm/{name}', param.grad.cpu().norm(), num_total_steps)
 
     # gradients norm clipping
-    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), 10)
+    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), 100)
 
-    # with train_summary_writer.as_default():
-    #     with torch.no_grad():
-    #         for name, param in policy_net.named_parameters():
-    #             if param.grad is not None:
-    #                 tf.summary.scalar(f'clipped gradient norm/{name}', param.grad.norm(), num_total_steps)
+    if train_summary_writer:
+        with train_summary_writer.as_default():
+            with torch.no_grad():
+                for name, param in policy_net.named_parameters():
+                    if param.grad is not None:
+                        tf.summary.scalar(f'clipped gradient norm/{name}', param.grad.cpu().norm(), num_total_steps)
 
 
     optimizer.step()

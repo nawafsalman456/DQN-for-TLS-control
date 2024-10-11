@@ -9,9 +9,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), f"{os.environ.get('SUMO_
 import traci
 from sumolib import checkBinary
 
-CAR_WEIGHT = 1
-BUS_WEIGHT = 10
-        
 class GenericTLS:
 
     def __init__(self, tls_id):
@@ -137,27 +134,21 @@ class GenericTLS:
                             out_vehicles[outgoing_lane] += 1
         return in_vehicles, out_vehicles
 
-    def get_weighted_num_vehicles_on_each_lane(self):
-        in_vehicles = {}
-        out_vehicles = {}
-        lanes = traci.trafficlight.getControlledLinks(self.tls_id)
+    def get_num_cars_and_buses_on_each_lane(self):
+        num_cars = []
+        num_buses = []
+        lanes = traci.trafficlight.getControlledLanes(self.tls_id)
         for lane in lanes:
-            for link in lane:
-                incoming_lane = link[0]
-                outgoing_lane = link[1]
-                in_vehicles[incoming_lane] = 0
-                out_vehicles[outgoing_lane] = 0
-                in_v_ids = traci.lane.getLastStepVehicleIDs(incoming_lane)
-                out_v_ids = traci.lane.getLastStepVehicleIDs(outgoing_lane)
-                for vehicle_id in in_v_ids:
-                    vtype = traci.vehicle.getTypeID(vehicle_id)
-                    weight = BUS_WEIGHT if vtype == "DEFAULT_CONTAINERTYPE" else CAR_WEIGHT
-                    in_vehicles[incoming_lane] += weight
-                for vehicle_id in out_v_ids:
-                    vtype = traci.vehicle.getTypeID(vehicle_id)
-                    weight = BUS_WEIGHT if vtype == "DEFAULT_CONTAINERTYPE" else CAR_WEIGHT
-                    out_vehicles[outgoing_lane] += weight
-        return in_vehicles, out_vehicles
+            vehicles = traci.lane.getLastStepVehicleIDs(lane)
+            num_cars_curr_lane = 0
+            num_buses_curr_lane = 0
+            for vehicle_id in vehicles:
+                vtype = traci.vehicle.getTypeID(vehicle_id)
+                num_cars_curr_lane += (vtype == "DEFAULT_VEHTYPE")
+                num_buses_curr_lane += (vtype == "DEFAULT_CONTAINERTYPE")
+            num_cars.append(num_cars_curr_lane)
+            num_buses.append(num_buses_curr_lane)
+        return num_cars, num_buses
 
     # def get_num_vehicles_on_each_lane_with_limited_distance(self, max_distance):
     #     num_vehicles = []
@@ -262,8 +253,7 @@ class GenericTLS:
 
         return vehicle_types_num
 
-    # return number of vehicles considering their weights. for normal vehicles weight = 1, for buses weight = 5.
-    def get_weighted_num_vehicles(self):
+    def get_total_num_cars_and_buses(self):
 
         vehicle_types_num = self.get_num_vehicle_of_each_type()
 
@@ -274,8 +264,7 @@ class GenericTLS:
         # print("num_buses = ", num_buses)
         # assert(num_cars + num_buses == traci.vehicle.getIDCount())
         
-        weighted_num_vehicles = ((num_cars * CAR_WEIGHT) + (num_buses * BUS_WEIGHT))
-        return weighted_num_vehicles
+        return num_cars, num_buses
 
     def set_tls_phase(self, phase_index):
         self.next_phase = phase_index
@@ -357,11 +346,16 @@ class GenericTLS:
                 continue
             inc_lanes = self.max_pressure_lanes[phase_index]['inc']
             out_lanes = self.max_pressure_lanes[phase_index]['out']
+            # print("phase_index = ", phase_index)
+            # print("inc_lanes = ", inc_lanes)
+            # print("out_lanes = ", out_lanes)
 
 
             #pressure is defined as the number of vehicles in a lane
             inc_pressure = sum([ inc[l] for l in inc_lanes])
             out_pressure = sum([ out[l] for l in out_lanes])
+            # print("inc_pressure = ", inc_pressure)
+            # print("out_pressure = ", out_pressure)
             phase_pressure[phase_index] = inc_pressure# - out_pressure
             if inc_pressure == 0 and out_pressure == 0:
                 no_vehicle_phases.append(phase_index)

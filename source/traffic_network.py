@@ -21,9 +21,11 @@ class TrafficNetwork:
     def __init__(self):
         self.SIM_STEPS = 3600
         self.MIN_TIME_IN_PHASE = 5
-        self.MAX_TIME_IN_PHASE = 35
+        self.MAX_TIME_IN_PHASE = 50
         self.TIME_IN_YELLOW = 2
         self.TIME_IN_RED = 1
+        self.CAR_WEIGHT = 1
+        self.BUS_WEIGHT = 30
         self.tls = generic_tls.GenericTLS('my_traffic_light')
         self.tls_curr_phase = 0  # start from phase 0
         self.collect_data = False
@@ -32,6 +34,10 @@ class TrafficNetwork:
         self.reward = 0
         self.weighted_reward = 0
         self.non_weighted_reward = 0
+        self.num_cars_on_each_lane = []
+        self.num_buses_on_each_lane = []
+        self.weighted_num_vehicles_on_each_lane = []
+        self.num_vehicles_on_each_lane = []
         self.state = []
         self.vehicle_positions = []
         self.vehicle_velocities = []
@@ -53,6 +59,11 @@ class TrafficNetwork:
         self.reward = 0
         self.weighted_reward = 0
         self.non_weighted_reward = 0
+        self.num_lanes = len(traci.trafficlight.getControlledLanes(self.tls.tls_id))
+        self.num_cars_on_each_lane = [0] * self.num_lanes
+        self.num_buses_on_each_lane = [0] * self.num_lanes
+        self.weighted_num_vehicles_on_each_lane = [0] * self.num_lanes
+        self.num_vehicles_on_each_lane = [0] * self.num_lanes
         self.state = self.get_curr_state()
         self.collect_data = collect_data
         self.counter = 0
@@ -64,12 +75,15 @@ class TrafficNetwork:
         num_tls_phases = len(self.tls.get_tls_all_phases())
 
         if ("y" in current_colors): # if yellow phase, stay for 2 seconds
-            MIN = MAX = self.TIME_IN_YELLOW
+            MIN = self.TIME_IN_YELLOW
+            MAX = self.TIME_IN_YELLOW
         elif ("G" in current_colors or "g" in current_colors):
             MIN = self.MIN_TIME_IN_PHASE
             MAX = self.MAX_TIME_IN_PHASE
         else:
-            MIN = MAX = self.TIME_IN_RED   # if red phase, stay for 1 seconds
+            # if red phase, stay for 1 seconds
+            MIN = self.TIME_IN_RED
+            MAX = self.TIME_IN_RED
 
         if time_in_curr_phase >= MAX:
             # if stuck in current phase for a long time, move to next phase
@@ -94,11 +108,17 @@ class TrafficNetwork:
         # collect_data is false in training, to save latency.
         if self.collect_data:
             self.tls.aggregate_data()
+            
+        self.num_cars_on_each_lane, self.num_buses_on_each_lane = self.tls.get_num_cars_and_buses_on_each_lane()
+        self.weighted_num_vehicles_on_each_lane = self.get_weighted_num_vehicles_on_each_lane()
+        self.num_vehicles_on_each_lane = self.get_num_vehicles_on_each_lane()
+
+        total_num_cars, total_num_buses = self.tls.get_total_num_cars_and_buses()
 
         self.curr_step += 1
-        self.state = self.get_curr_state()  # build the state. state is the input of DQN
-        self.weighted_reward = -self.tls.get_weighted_num_vehicles()
-        self.non_weighted_reward = -traci.vehicle.getIDCount()
+        self.state = self.get_curr_state(buses_weighted_reward)  # build the state. state is the input of DQN
+        self.weighted_reward = -(total_num_cars * self.CAR_WEIGHT + total_num_buses * self.BUS_WEIGHT)
+        self.non_weighted_reward = -(total_num_cars + total_num_buses)
         # print("weighted reward = ", self.weighted_reward)
         # print("non-weighted reward = ", -traci.vehicle.getIDCount())
         if buses_weighted_reward:
@@ -115,12 +135,28 @@ class TrafficNetwork:
     
     def get_non_weighted_reward(self):
         return self.non_weighted_reward
-
-    def get_curr_state(self):
+    
+    def get_weighted_num_vehicles_on_each_lane(self):
+        weighted_num_vehicles = []
+        for i in range(self.num_lanes):
+            weighted_num_vehicles.append(self.num_cars_on_each_lane[i] * self.CAR_WEIGHT + self.num_buses_on_each_lane[i] * self.BUS_WEIGHT)
+        return weighted_num_vehicles
+    
+    def get_num_vehicles_on_each_lane(self):
+        num_vehicles = []
+        for i in range(self.num_lanes):
+            num_vehicles.append(self.num_cars_on_each_lane[i] + self.num_buses_on_each_lane[i])
+        return num_vehicles
+    
+    def get_curr_state(self, buses_weighted_reward=False):
         # num_in_vehicles, num_out_vehicles = self.tls.get_num_vehicles_on_each_lane()
         state_list = self.tls.get_curr_phase_encoding() + \
-                     [self.tls.get_curr_phase_spent_time()] + \
-                     self.tls.get_num_vehicles_on_each_lane()
+                     [self.tls.get_curr_phase_spent_time()]
+                     
+        if buses_weighted_reward:
+            state_list += self.weighted_num_vehicles_on_each_lane
+        else:
+            state_list += self.num_vehicles_on_each_lane
                     #  self.tls.get_green_lanes_in_curr_phase() + \
                     #  self.tls.get_all_lanes_waiting_vehicles()
                     #  list(num_in_vehicles.values()) + \

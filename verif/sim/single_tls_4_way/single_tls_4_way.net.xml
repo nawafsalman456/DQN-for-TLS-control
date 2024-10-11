@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2024-09-17 20:53:07 by Eclipse SUMO netedit Version 1.19.0
+<!-- generated on 2024-10-11 16:59:37 by Eclipse SUMO netedit Version 1.19.0
 <configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/neteditConfiguration.xsd">
 
     <input>
         <sumocfg-file value="C:\study\ProjectA\verif\sim\single_tls_4_way\single_tls_4_way.sumocfg"/>
-        <additional-files value=""/>
-        <route-files value="C:\study\ProjectA\verif\sim\single_tls_4_way\single_tls_4_way.rou.xml"/>
         <sumo-net-file value="C:\study\ProjectA\verif\sim\single_tls_4_way\single_tls_4_way.net.xml"/>
     </input>
 
@@ -31,10 +29,6 @@
     <pedestrian>
         <walkingareas value="0"/>
     </pedestrian>
-
-    <netedit>
-        <ignore.routeelements value="false"/>
-    </netedit>
 
 </configuration>
 -->
@@ -68,37 +62,37 @@
         <lane id=":my_traffic_light_7_0" index="0" disallow="pedestrian" speed="9.25" length="19.39" shape="-601.26,273.69 -595.99,274.42 -592.23,276.66 -589.97,280.41 -589.22,285.67"/>
     </edge>
 
-    <edge id="-E11" from="my_traffic_light" to="J17" priority="-1">
-        <lane id="-E11_0" index="0" disallow="pedestrian" speed="13.89" length="183.85" shape="-586.02,285.67 -585.98,469.52"/>
-        <lane id="-E11_1" index="1" disallow="pedestrian" speed="13.89" length="183.85" shape="-589.22,285.67 -589.18,469.52"/>
+    <edge id="-E11" from="my_traffic_light" to="J17" priority="-1" length="200.00">
+        <lane id="-E11_0" index="0" disallow="pedestrian" speed="13.89" length="200.00" shape="-586.02,285.67 -585.98,469.52"/>
+        <lane id="-E11_1" index="1" disallow="pedestrian" speed="13.89" length="200.00" shape="-589.22,285.67 -589.18,469.52"/>
     </edge>
-    <edge id="-E12" from="J20" to="my_traffic_light" priority="-1">
-        <lane id="-E12_0" index="0" disallow="pedestrian" speed="13.89" length="197.96" shape="-586.02,66.87 -586.02,264.83"/>
-        <lane id="-E12_1" index="1" disallow="pedestrian" speed="13.89" length="197.96" shape="-589.22,66.87 -589.22,264.83"/>
+    <edge id="-E12" from="J20" to="my_traffic_light" priority="-1" length="200.00">
+        <lane id="-E12_0" index="0" disallow="pedestrian" speed="13.89" length="200.00" shape="-586.02,66.87 -586.02,264.83"/>
+        <lane id="-E12_1" index="1" disallow="pedestrian" speed="13.89" length="200.00" shape="-589.22,66.87 -589.22,264.83"/>
     </edge>
-    <edge id="-E13" from="J21" to="my_traffic_light" priority="-1">
-        <lane id="-E13_0" index="0" disallow="pedestrian" speed="13.89" length="245.05" shape="-335.35,279.62 -580.40,280.02"/>
-        <lane id="-E13_1" index="1" disallow="pedestrian" speed="13.89" length="245.05" shape="-335.36,276.42 -580.41,276.82"/>
+    <edge id="-E13" from="J21" to="my_traffic_light" priority="-1" length="200.00">
+        <lane id="-E13_0" index="0" disallow="pedestrian" speed="13.89" length="200.00" shape="-335.35,279.62 -580.40,280.02"/>
+        <lane id="-E13_1" index="1" disallow="pedestrian" speed="13.89" length="200.00" shape="-335.36,276.42 -580.41,276.82"/>
     </edge>
-    <edge id="-E14" from="my_traffic_light" to="J22" priority="-1">
-        <lane id="-E14_0" index="0" disallow="pedestrian" speed="13.89" length="231.49" shape="-601.23,280.09 -832.72,281.16"/>
-        <lane id="-E14_1" index="1" disallow="pedestrian" speed="13.89" length="231.49" shape="-601.24,276.89 -832.73,277.96"/>
+    <edge id="-E14" from="my_traffic_light" to="J22" priority="-1" length="200.00">
+        <lane id="-E14_0" index="0" disallow="pedestrian" speed="13.89" length="200.00" shape="-601.23,280.09 -832.72,281.16"/>
+        <lane id="-E14_1" index="1" disallow="pedestrian" speed="13.89" length="200.00" shape="-601.24,276.89 -832.73,277.96"/>
     </edge>
-    <edge id="E11" from="J17" to="my_traffic_light" priority="-1" spreadType="center" shape="-593.98,469.54 -594.02,275.20">
-        <lane id="E11_0" index="0" disallow="pedestrian" speed="13.89" length="183.87" shape="-595.58,469.54 -595.62,285.67"/>
-        <lane id="E11_1" index="1" disallow="pedestrian" speed="13.89" length="183.87" shape="-592.38,469.54 -592.42,285.67"/>
+    <edge id="E11" from="J17" to="my_traffic_light" priority="-1" spreadType="center" length="200.00" shape="-593.98,469.54 -594.02,275.20">
+        <lane id="E11_0" index="0" disallow="pedestrian" speed="13.89" length="200.00" shape="-595.58,469.54 -595.62,285.67"/>
+        <lane id="E11_1" index="1" disallow="pedestrian" speed="13.89" length="200.00" shape="-592.38,469.54 -592.42,285.67"/>
     </edge>
-    <edge id="E12" from="my_traffic_light" to="J20" priority="-1">
-        <lane id="E12_0" index="0" disallow="pedestrian" speed="13.89" length="197.96" shape="-595.62,264.83 -595.62,66.87"/>
-        <lane id="E12_1" index="1" disallow="pedestrian" speed="13.89" length="197.96" shape="-592.42,264.83 -592.42,66.87"/>
+    <edge id="E12" from="my_traffic_light" to="J20" priority="-1" length="200.00">
+        <lane id="E12_0" index="0" disallow="pedestrian" speed="13.89" length="200.00" shape="-595.62,264.83 -595.62,66.87"/>
+        <lane id="E12_1" index="1" disallow="pedestrian" speed="13.89" length="200.00" shape="-592.42,264.83 -592.42,66.87"/>
     </edge>
-    <edge id="E13" from="my_traffic_light" to="J21" priority="-1">
-        <lane id="E13_0" index="0" disallow="pedestrian" speed="13.89" length="245.05" shape="-580.42,270.42 -335.37,270.02"/>
-        <lane id="E13_1" index="1" disallow="pedestrian" speed="13.89" length="245.05" shape="-580.41,273.62 -335.36,273.22"/>
+    <edge id="E13" from="my_traffic_light" to="J21" priority="-1" length="200.00">
+        <lane id="E13_0" index="0" disallow="pedestrian" speed="13.89" length="200.00" shape="-580.42,270.42 -335.37,270.02"/>
+        <lane id="E13_1" index="1" disallow="pedestrian" speed="13.89" length="200.00" shape="-580.41,273.62 -335.36,273.22"/>
     </edge>
-    <edge id="E14" from="J22" to="my_traffic_light" priority="-1">
-        <lane id="E14_0" index="0" disallow="pedestrian" speed="13.89" length="231.49" shape="-832.76,271.56 -601.27,270.49"/>
-        <lane id="E14_1" index="1" disallow="pedestrian" speed="13.89" length="231.49" shape="-832.75,274.76 -601.26,273.69"/>
+    <edge id="E14" from="J22" to="my_traffic_light" priority="-1" length="200.00">
+        <lane id="E14_0" index="0" disallow="pedestrian" speed="13.89" length="200.00" shape="-832.76,271.56 -601.27,270.49"/>
+        <lane id="E14_1" index="1" disallow="pedestrian" speed="13.89" length="200.00" shape="-832.75,274.76 -601.26,273.69"/>
     </edge>
 
     <tlLogic id="my_traffic_light" type="static" programID="0" offset="0">

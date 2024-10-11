@@ -17,6 +17,14 @@ to run all the tests:
 to run the main algorithm (RL):
     python %PROJECT_ROOT%\source\RL_tls.py
 
+#TODO - update this README file
+
+to run in debug mode:
+    - run RL_tls.py with flag --debug
+    - start TensorBoard in terminal:
+          tensorboard --logdir=logs/train/ --port=6006
+    - Open TensorBoard in local web browser:
+          http://localhost:6006
 
 nohup ./run.sh &
 

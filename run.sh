@@ -35,30 +35,30 @@ run_simulation() {
 
 # use_buses_weighted_reward = true
 run_simulation 21345 true &
-run_simulation 78754 true &
-run_simulation 12355 true &
-run_simulation 67878 true &
-run_simulation 21354 true &
-wait
+# run_simulation 78754 true &
+# run_simulation 12355 true &
+# run_simulation 67878 true &
+# run_simulation 21354 true &
+# wait
 
-run_simulation 35467 true &
-run_simulation 13455 true &
-run_simulation 34563 true &
-run_simulation 07894 true &
-run_simulation 96984 true &
-wait
+# run_simulation 35467 true &
+# run_simulation 13455 true &
+# run_simulation 34563 true &
+# run_simulation 07894 true &
+# run_simulation 96984 true &
+# wait
 
 # use_buses_weighted_reward = false
 run_simulation 21345 false &
-run_simulation 78754 false &
-run_simulation 12355 false &
-run_simulation 67878 false &
-run_simulation 21354 false &
-wait
+# run_simulation 78754 false &
+# run_simulation 12355 false &
+# run_simulation 67878 false &
+# run_simulation 21354 false &
+# wait
 
-run_simulation 35467 false &
-run_simulation 13455 false &
-run_simulation 34563 false &
-run_simulation 07894 false &
-run_simulation 96984 false &
-wait
+# run_simulation 35467 false &
+# run_simulation 13455 false &
+# run_simulation 34563 false &
+# run_simulation 07894 false &
+# run_simulation 96984 false &
+# wait
