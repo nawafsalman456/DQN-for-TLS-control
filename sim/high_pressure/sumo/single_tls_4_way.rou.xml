@@ -27,9 +27,9 @@
     <flow id="f_11" type="BUS_TYPE" begin="0.00" color="green"  fromJunction="J22" toJunction="J21" end="3600.00" period="exp(0.01)"/>
     
     <flow id="f_12" type="CAR_TYPE" begin="0.00" color="yellow" fromJunction="J22" toJunction="J17" end="3600.00" period="exp(0.10)"/>
-    <!-- <flow id="f_13" type="BUS_TYPE" begin="0.00" color="green"  fromJunction="J22" toJunction="J17" end="3600.00" period="exp(0.01)"/> -->
+    <!-- <flow id="f_13" type="BUS_TYPE" begin="0.00" color="green"  fromJunction="J22" toJunction="J17" end="3600.00" period="exp(0.00)"/> -->
     
     <flow id="f_14" type="CAR_TYPE" begin="0.00" color="yellow" fromJunction="J21" toJunction="J20" end="3600.00" period="exp(0.10)"/>
-    <!-- <flow id="f_15" type="BUS_TYPE" begin="0.00" color="green"  fromJunction="J21" toJunction="J20" end="3600.00" period="exp(0.01)"/> -->
+    <!-- <flow id="f_15" type="BUS_TYPE" begin="0.00" color="green"  fromJunction="J21" toJunction="J20" end="3600.00" period="exp(0.00)"/> -->
     
 </routes>

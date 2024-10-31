@@ -6,6 +6,7 @@ import matplotlib
 import signal
 import sys
 import importlib
+import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
 from collections import namedtuple, deque
 from itertools import count
@@ -58,7 +59,7 @@ class DQN(nn.Module):
 
     def __init__(self, n_observations, n_actions):
         super(DQN, self).__init__()
-        self.layer1 = nn.Linear(n_observations, 128) # TODO: init params ?
+        self.layer1 = nn.Linear(n_observations, 128)
         self.layer2 = nn.Linear(128, 128)
         self.layer3 = nn.Linear(128, 128)
         self.layer4 = nn.Linear(128, n_actions)
@@ -115,13 +116,13 @@ max_pressure_results = module.max_pressure_results
 # GAMMA is the discount factor
 # TAU is the update rate of the target network
 # LR is the learning rate of the ``RMSprop`` optimizer
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 GAMMA = 0.99
 EPS_START = 0.9
-EPS_END = 0.05
+EPS_END = 0.01
 EPS_DECAY = 20000
-TAU = 0.001
-LR = 0.0015
+TAU = 0.005
+LR = 0.001
 
 # set constant seed
 random.seed(args.seed)
@@ -180,82 +181,90 @@ if args.plot_mean_and_std:
 # ]
 
     # Find the minimum length of all lists
-    min_length = min(len(lst) for lst in all_rewards)
+    min_length = min(len(lst) for lst in all_non_weighted_rewards_trained_with_non_weighted)
     min_length = min(min_length, min(len(lst) for lst in all_rewards_trained_with_non_weighted))
+    if len(all_rewards) > 0:
+        min_length = min(min_length, min(len(lst) for lst in all_non_weighted_rewards))
+        min_length = min(min_length, min(len(lst) for lst in all_rewards))
 
     # Truncate each list to the minimum length
-    all_rewards = [lst[:min_length] for lst in all_rewards]
+    if len(all_rewards) > 0:
+        all_rewards = [lst[:min_length] for lst in all_rewards]
+        all_non_weighted_rewards = [lst[:min_length] for lst in all_non_weighted_rewards]
     all_rewards_trained_with_non_weighted = [lst[:min_length] for lst in all_rewards_trained_with_non_weighted]
-    all_non_weighted_rewards = [lst[:min_length] for lst in all_non_weighted_rewards]
     all_non_weighted_rewards_trained_with_non_weighted = [lst[:min_length] for lst in all_non_weighted_rewards_trained_with_non_weighted]
     
 
     # Convert the list of lists into a NumPy array for easier manipulation
-    all_rewards_np = np.array(all_rewards)
-    all_rewards_trained_with_non_weighted_np = np.array(all_rewards_trained_with_non_weighted)
-    all_non_weighted_rewards_np = np.array(all_non_weighted_rewards)
+    if len(all_rewards) > 0:
+        all_rewards_np = np.array(all_rewards)
+        all_non_weighted_rewards_np = np.array(all_non_weighted_rewards)
     all_non_weighted_rewards_trained_with_non_weighted_np = np.array(all_non_weighted_rewards_trained_with_non_weighted)
+    all_rewards_trained_with_non_weighted_np = np.array(all_rewards_trained_with_non_weighted)
 
-    # Calculate the mean and standard deviation along the axis 0 (column-wise)
-    means = np.mean(all_rewards_np, axis=0)
-    stds = np.std(all_rewards_np, axis=0)
+    if len(all_rewards) > 0:
+        # Calculate the mean and standard deviation along the axis 0 (column-wise)
+        means = np.mean(all_rewards_np, axis=0)
+        stds = np.std(all_rewards_np, axis=0)
 
-    # Create a plot
-    plt.figure(figsize=(10, 5))
-    x = range(len(means))
-    plt.plot(x, means, label='DQN train with weighted reward')
-    plt.fill_between(x, means - stds, means + stds, color='blue', alpha=0.2)
+        # Create a plot
+        plt.figure(figsize=(10, 5))
+        x = range(len(means))
+        plt.plot(x, means, color='blue', label='DQN train with weighted reward')
+        plt.fill_between(x, means - stds, means + stds, color='blue', alpha=0.2)
 
-    means = np.mean(all_rewards_trained_with_non_weighted_np, axis=0)
-    stds = np.std(all_rewards_trained_with_non_weighted_np, axis=0)
+        means = np.mean(all_rewards_trained_with_non_weighted_np, axis=0)
+        stds = np.std(all_rewards_trained_with_non_weighted_np, axis=0)
 
-    x = range(len(means))
-    plt.plot(x, means, label='DQN train with non-weighted reward')
-    plt.fill_between(x, means - stds, means + stds, color='red', alpha=0.2)
-    plt.legend()
-    
-    # Max Pressure
-    means = [max_pressure_results["rewards_mean"]] * len(means)
-    stds = [max_pressure_results["rewards_std"]] * len(means)
-    means = np.array(means)
-    stds = np.array(stds)
-    x = range(len(means))
-    plt.plot(x, means, label='max pressure')
-    plt.fill_between(x, means - stds, means + stds, color='green', alpha=0.2)
-    plt.legend()
+        x = range(len(means))
+        plt.plot(x, means, color='red', label='DQN train with non-weighted reward')
+        plt.fill_between(x, means - stds, means + stds, color='red', alpha=0.2)
+        plt.legend()
+        
+        # Max Pressure
+        means = [max_pressure_results["rewards_mean"]] * len(means)
+        stds = [max_pressure_results["rewards_std"]] * len(means)
+        means = np.array(means)
+        stds = np.array(stds)
+        x = range(len(means))
+        plt.plot(x, means, color='green', label='max pressure')
+        plt.fill_between(x, means - stds, means + stds, color='green', alpha=0.2)
+        plt.legend()
 
-    plt.title('Weighted Reward Mean and STD')
-    plt.xlabel('episode')
-    plt.ylabel('Reward')
-    plt.grid(True)
-    plt.savefig(f'{sim_dir}/plots/weighted_reward/mean_and_std.png')
+        plt.title('Weighted Reward Mean and STD')
+        plt.xlabel('episode')
+        plt.ylabel('Reward')
+        plt.grid(True)
+        plt.savefig(f'{sim_dir}/plots/weighted_reward/mean_and_std.png')
     
     
     # Create second plot of non-weighted rewards
-    means = np.mean(all_non_weighted_rewards_np, axis=0)
-    stds = np.std(all_non_weighted_rewards_np, axis=0)
-    
-    plt.figure(figsize=(10, 5))
-    x = range(len(means))
-    plt.plot(x, means, label='train with weighted reward')
-    plt.fill_between(x, means - stds, means + stds, color='blue', alpha=0.2)
+    if len(all_non_weighted_rewards) > 0:
+        means = np.mean(all_non_weighted_rewards_np, axis=0)
+        stds = np.std(all_non_weighted_rewards_np, axis=0)
+        
+        plt.figure(figsize=(10, 5))
+        x = range(len(means))
+        plt.plot(x, means, color='blue', label='train with weighted reward')
+        plt.fill_between(x, means - stds, means + stds, color='blue', alpha=0.2)
 
 
-    means = np.mean(all_non_weighted_rewards_trained_with_non_weighted_np, axis=0)
-    stds = np.std(all_non_weighted_rewards_trained_with_non_weighted_np, axis=0)
+    if len(all_non_weighted_rewards_trained_with_non_weighted) > 0:
+        means = np.mean(all_non_weighted_rewards_trained_with_non_weighted_np, axis=0)
+        stds = np.std(all_non_weighted_rewards_trained_with_non_weighted_np, axis=0)
 
-    x = range(len(means))
-    plt.plot(x, means, label='train with non-weighted reward')
-    plt.fill_between(x, means - stds, means + stds, color='red', alpha=0.2)
-    plt.legend()
-    
+        x = range(len(means))
+        plt.plot(x, means, color='red', label='train with non-weighted reward')
+        plt.fill_between(x, means - stds, means + stds, color='red', alpha=0.2)
+        plt.legend()
+        
     # Max Pressure
     means = [max_pressure_results["non_weighted_rewards_mean"]] * len(means)
     stds = [max_pressure_results["non_weighted_rewards_std"]] * len(means)
     means = np.array(means)
     stds = np.array(stds)
     x = range(len(means))
-    plt.plot(x, means, label='max pressure')
+    plt.plot(x, means, color='green', label='max pressure')
     plt.fill_between(x, means - stds, means + stds, color='green', alpha=0.2)
     plt.legend()
 
@@ -298,7 +307,7 @@ optimizer = optim.RMSprop(policy_net.parameters(), lr=LR)
 # initialize memory of size 50000000. make sure that it is big enough to save all transitions.
 memory = ReplayMemory(50000000)
 
-num_episodes = 200
+num_episodes = 100
 
 max_total_reward = -float("inf")
 
@@ -373,9 +382,32 @@ def optimize_model():
                     if param.grad is not None:
                         tf.summary.scalar(f'gradient norm/{name}', param.grad.cpu().norm(), num_total_steps)
 
-    # gradients norm clipping
-    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), 20)
+    # Save gradients and compute norms before clipping
+    # grad_norms = {}
+    # for name, param in policy_net.named_parameters():
+    #     if param.grad is not None:
+    #         grad_norms[name] = param.grad.norm().item()
 
+    # # Compute average gradient norm
+    # avg_grad_norm = sum(grad_norms.values()) / len(grad_norms)
+
+    # # Find extreme gradients (e.g., norms far from the average)
+    # threshold = 4.0  # Define a threshold for detecting extreme values, e.g., 2 times the average
+    # extreme_gradients = {name: norm for name, norm in grad_norms.items() if abs(norm - avg_grad_norm) > threshold * avg_grad_norm}
+
+    # if len(extreme_gradients) > 0:
+    #     # Print results
+    #     print(f"Average gradient norm: {avg_grad_norm}")
+    #     print(f"Gradients far from average (extreme values):")
+    #     for name, norm in extreme_gradients.items():
+    #         print(f"{name}: {norm}")
+            
+    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), 100)
+    
+    # for name, param in policy_net.named_parameters():
+    #     if param.grad is not None:
+    #         print(f'clipped gradient norm/{name} = {param.grad.cpu().norm()}')
+            
     if train_summary_writer:
         with train_summary_writer.as_default():
             with torch.no_grad():
@@ -512,8 +544,8 @@ def train_model(num_episodes):
 
             if terminated:
                 finalize_episode(total_reward, i_episode, total_non_weighted_reward)
-                if len(rewards) >= num_episodes:
-                    return
+                # if len(rewards) >= num_episodes:
+                #     return
                 break
 
 def test_model():

@@ -8,28 +8,12 @@
     <vType id="BUS_TYPE" vClass="passenger"/>
     <vType id="CAR_TYPE" vClass="passenger"/>
     <!-- Vehicles, persons and containers (sorted by depart) -->
-    <flow id="f_0" type="CAR_TYPE"       begin="0.00" color="yellow" fromJunction="J17" toJunction="J20" end="3600.00" period="exp(0.05)"/>
-    <flow id="f_1" type="BUS_TYPE" begin="0.00" color="green"  fromJunction="J17" toJunction="J20" end="3600.00" period="exp(0.005)"/>
-    
-    <flow id="f_2" type="CAR_TYPE"       begin="0.00" color="yellow" fromJunction="J20" toJunction="J17" end="3600.00" period="exp(0.05)"/>
-    <flow id="f_3" type="BUS_TYPE" begin="0.00" color="green"  fromJunction="J20" toJunction="J17" end="3600.00" period="exp(0.005)"/>
-    
-    <flow id="f_4" type="CAR_TYPE"       begin="0.00" color="yellow" fromJunction="J17" toJunction="J21" end="3600.00" period="exp(0.05)"/>
-    <flow id="f_5" type="BUS_TYPE" begin="0.00" color="green"  fromJunction="J17" toJunction="J21" end="3600.00" period="exp(0.005)"/>
-    
-    <flow id="f_6" type="CAR_TYPE"       begin="0.00" color="yellow" fromJunction="J20" toJunction="J22" end="3600.00" period="exp(0.05)"/>
-    <flow id="f_7" type="BUS_TYPE" begin="0.00" color="green"  fromJunction="J20" toJunction="J22" end="3600.00" period="exp(0.005)"/>
-    
-    <flow id="f_8" type="CAR_TYPE"       begin="0.00" color="yellow" fromJunction="J21" toJunction="J22" end="3600.00" period="exp(0.05)"/>
-    <flow id="f_9" type="BUS_TYPE" begin="0.00" color="green"  fromJunction="J21" toJunction="J22" end="3600.00" period="exp(0.005)"/>
-    
-    <flow id="f_10" type="CAR_TYPE"       begin="0.00" color="yellow" fromJunction="J22" toJunction="J21" end="3600.00" period="exp(0.05)"/>
-    <flow id="f_11" type="BUS_TYPE" begin="0.00" color="green"  fromJunction="J22" toJunction="J21" end="3600.00" period="exp(0.005)"/>
-    
-    <flow id="f_12" type="CAR_TYPE"       begin="0.00" color="yellow" fromJunction="J22" toJunction="J17" end="3600.00" period="exp(0.05)"/>
-    <flow id="f_13" type="BUS_TYPE" begin="0.00" color="green"  fromJunction="J22" toJunction="J17" end="3600.00" period="exp(0.005)"/>
-    
-    <flow id="f_14" type="CAR_TYPE"       begin="0.00" color="yellow" fromJunction="J21" toJunction="J20" end="3600.00" period="exp(0.05)"/>
-    <flow id="f_15" type="BUS_TYPE" begin="0.00" color="green"  fromJunction="J21" toJunction="J20" end="3600.00" period="exp(0.005)"/>
-    
+    <flow id="f_0" type="CAR_TYPE" begin="0.00" color="yellow" fromJunction="J17" toJunction="J20" end="3600.00" period="exp(0.07)"/>
+    <flow id="f_1" type="CAR_TYPE" begin="0.00" color="yellow" fromJunction="J20" toJunction="J17" end="3600.00" period="exp(0.07)"/>
+    <flow id="f_2" type="CAR_TYPE" begin="0.00" color="yellow" fromJunction="J17" toJunction="J21" end="3600.00" period="exp(0.07)"/>
+    <flow id="f_3" type="CAR_TYPE" begin="0.00" color="yellow" fromJunction="J20" toJunction="J22" end="3600.00" period="exp(0.07)"/>
+    <flow id="f_4" type="CAR_TYPE" begin="0.00" color="yellow" fromJunction="J21" toJunction="J22" end="3600.00" period="exp(0.07)"/>
+    <flow id="f_5" type="CAR_TYPE" begin="0.00" color="yellow" fromJunction="J22" toJunction="J21" end="3600.00" period="exp(0.07)"/>
+    <flow id="f_6" type="CAR_TYPE" begin="0.00" color="yellow" fromJunction="J22" toJunction="J17" end="3600.00" period="exp(0.07)"/>
+    <flow id="f_7" type="CAR_TYPE" begin="0.00" color="yellow" fromJunction="J21" toJunction="J20" end="3600.00" period="exp(0.07)"/>
 </routes>

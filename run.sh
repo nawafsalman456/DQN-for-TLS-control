@@ -13,9 +13,9 @@ run_simulation() {
 
     while [ $attempt -lt $max_attempts ] && [ "$success" = false ]; do
         if [ "$use_buses_weighted_reward" = true ]; then
-            python3 source/RL_tls.py --load_model --save_model --print_reward --plot_rewards --buses_weighted_reward --sim high_pressure --seed "$seed"
+            python3 source/RL_tls.py --load_model --save_model --print_reward --plot_rewards --buses_weighted_reward --sim low_pressure --seed "$seed"
         else
-            python3 source/RL_tls.py --load_model --save_model --print_reward --plot_rewards --sim high_pressure --seed "$seed"
+            python3 source/RL_tls.py --load_model --save_model --print_reward --plot_rewards --sim low_pressure --seed "$seed"
         fi
 
         local exit_code=$?
@@ -33,32 +33,17 @@ run_simulation() {
     fi
 }
 
-run_simulation 21345 true &
-run_simulation 78754 true &
+
 run_simulation 21345 false &
 run_simulation 78754 false &
-wait
-
-run_simulation 12355 true &
-run_simulation 67878 true &
 run_simulation 12355 false &
 run_simulation 67878 false &
-wait
-
-run_simulation 21354 true &
-run_simulation 35467 true &
 run_simulation 21354 false &
-run_simulation 35467 false &
 wait
 
-run_simulation 13455 true &
-run_simulation 34563 true &
+run_simulation 35467 false &
 run_simulation 13455 false &
 run_simulation 34563 false &
-wait
-
-run_simulation 07894 true &
-run_simulation 96984 true &
 run_simulation 07894 false &
 run_simulation 96984 false &
 wait
