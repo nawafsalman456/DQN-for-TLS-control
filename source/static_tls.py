@@ -30,4 +30,4 @@ while True:
 
 print(f"\ntotal_reward = {total_reward}\n")
 print(f"\non_weighted_reward = {non_weighted_reward}\n")
-env.plot_space_time(0)
+env.plot_space_time()

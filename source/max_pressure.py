@@ -28,7 +28,7 @@ else:
 random.seed(args.seed)
 
 sim_file = f"{sim_dir}/sumo/single_tls_4_way.sumocfg"
-state = env.reset(is_gui=args.gui, collect_data=False, sim_file=sim_file)
+state = env.reset(is_gui=args.gui, collect_data=args.plot_space_time, sim_file=sim_file)
 
 env.MIN_TIME_IN_PHASE = 10
 env.MAX_TIME_IN_PHASE = 50
@@ -40,7 +40,7 @@ for _ in range(env.tls.get_num_lanes()):
 rewards = []
 non_weighted_rewards = []
 
-num_runs = 10
+num_runs = 1
 for r in range(num_runs):
     random.seed(args.seed + r*1234321)
     total_reward = 0
@@ -48,7 +48,7 @@ for r in range(num_runs):
     curr_phase = 0
     time_in_yellow = 0
     time_in_red = 0
-    env.reset(sim_file=sim_file)
+    env.reset(sim_file=sim_file, collect_data=args.plot_space_time)
     while True:
         
         curr_colors = env.tls.get_curr_colors()
@@ -103,6 +103,9 @@ for r in range(num_runs):
             env.terminate()
             break
     
+if args.plot_space_time:
+    env.plot_space_time("Max Pressure")
+
 print("rewards = ", rewards)
 print("non_weighted_rewards = ", non_weighted_rewards)
 

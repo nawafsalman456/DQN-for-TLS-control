@@ -177,7 +177,7 @@ class TrafficNetwork:
         parser.add_argument("--seed", type=int, default=42, help="Seed for random number generation (default: 42)")
         return parser.parse_args()
 
-    def plot_space_time(self, pause_time = 10):
+    def plot_space_time(self, image_name):
         # Data collection of the last simulation
         vehicle_positions, vehicle_velocities, distance_from_tls = self.tls.get_aggregated_data()
         # Plot space-time diagram
@@ -186,12 +186,6 @@ class TrafficNetwork:
         plt.colorbar(scatter, label='Velocity (m/s)')
         plt.xlabel('Simulation Time (s)')
         plt.ylabel('Distance From TLS')
-        plt.title('Space-Time Diagram')
-        if pause_time == 0:
-            # plt.show()
-            plt.savefig(f'imgs/space_time.png')
-            
-        else:
-            plt.pause(pause_time)    # Wait for "pause_time" second before closing the window
-            plt.clf()  # Clear the current figure
-            plt.close() # Close the current figure window
+        plt.title(f'Space-Time Diagram - {image_name}')
+        image_name = image_name.replace(" ", "_").lower()
+        plt.savefig(f'imgs/space_time_{image_name}.png')

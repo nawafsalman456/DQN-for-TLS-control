@@ -600,4 +600,4 @@ if args.save_model:
 
 print('Complete')
 plot_rewards()
-env.plot_space_time(0)
+env.plot_space_time("DQN")
